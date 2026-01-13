@@ -119,6 +119,7 @@ const placeOrderPesapal = async (req, res) => {
         zip_code: address.zipcode || "",
       },
     };
+    console.log('Pesapal Order Details:', JSON.stringify(pesapalOrderDetails, null, 2));
 
     // Step 4: Submit order to Pesapal
     const pesapalResponse = await pesapal.submitOrder(pesapalOrderDetails);
