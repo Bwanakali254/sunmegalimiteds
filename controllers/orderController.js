@@ -109,7 +109,7 @@ const placeOrderPesapal = async (req, res) => {
       billing_address: {
         email_address: address.email,
         phone_number: address.phone,
-        country_code: address.country || "KE",
+        country: address.country || "KENYA",
         first_name: address.firstName,
         last_name: address.lastName,
         line_1: address.street,
