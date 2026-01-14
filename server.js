@@ -45,9 +45,9 @@ app.use(helmet({
                 process.env.FRONTEND_URL || 'http://localhost:5173',
                 process.env.ADMIN_URL || 'http://localhost:5174',
                 "https://accounts.google.com",
-                "https://*.pesapal.com"
+                
             ],
-            frameSrc: ["'self'", "https://accounts.google.com", "https://*.pesapal.com"],
+            frameSrc: ["'self'", "https://accounts.google.com", ],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             upgradeInsecureRequests: []
