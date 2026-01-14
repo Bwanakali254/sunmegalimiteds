@@ -1,70 +1,27 @@
 import { getPesapalToken } from "../config/pesapal.js";
-import {
-  registerPesapalIPN,
-  getPesapalTransactionStatus,
-} from "../config/pesapal.js";
+import { registerPesapalIPN, getPesapalTransactionStatus } from "../config/pesapal.js";
 import Order from "../models/orderModel.js";
 
-export const testPesapalAuth = async (req, res) => {
-  try {
-    const token = await getPesapalToken();
-    res.json({ success: true, token });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
 
-export const testRegisterIPN = async (req, res) => {
-  try {
-    // We pass the IPN url using query string for testing
-    const ipnUrl = req.query.url;
-
-    if (!ipnUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "You must provide ?url=YOUR_IPN_URL",
-      });
-    }
-
-    const result = await registerPesapalIPN(ipnUrl);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
 
 export const handlePesapalIPN = async (req, res) => {
   try {
-    console.log(">>> IPN HIT <<<", req.method, req.query, req.body);
-    const { OrderTrackingId, MerchantReference } = req.query;
+    const { OrderTrackingId } = req.query;
 
     if (!OrderTrackingId) {
       return res.status(200).send("OK");
     }
 
-    console.log("Pesapal IPN received:", req.query);
-
-    // Ask Pesapal for real status
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
-    // Support both possible response shapes
+
     const paymentStatus =
       statusData?.payment_status_description ||
       statusData?.data?.payment_status_description;
 
-    console.log("Final payment status:", paymentStatus);
-
-    // Find your order by tracking id
     const order = await Order.findOne({ orderTrackingId: OrderTrackingId });
 
     if (!order) {
-      console.log("Order not found for tracking id:", OrderTrackingId);
+      console.log("Order not found:", OrderTrackingId);
       return res.status(200).send("OK");
     }
 
@@ -80,7 +37,6 @@ export const handlePesapalIPN = async (req, res) => {
     }
 
     await order.save();
-
     console.log("Order updated:", order._id, order.status);
 
     res.status(200).send("OK");
@@ -90,7 +46,6 @@ export const handlePesapalIPN = async (req, res) => {
   }
 };
 
-//adding endpoint for status check
 export const checkPesapalStatus = async (req, res) => {
   try {
     const { orderTrackingId } = req.query;
@@ -103,9 +58,13 @@ export const checkPesapalStatus = async (req, res) => {
 
     const statusData = await getPesapalTransactionStatus(orderTrackingId);
 
+    const paymentStatus =
+      statusData?.payment_status_description ||
+      statusData?.data?.payment_status_description;
+
     res.json({
       success: true,
-      status: statusData.payment_status_description,
+      status: paymentStatus,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

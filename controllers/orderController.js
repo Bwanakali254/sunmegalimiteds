@@ -3,7 +3,6 @@ import productModel from "../models/productModel.js";
 import { logError, logInfo } from "../utils/logger.js";
 import { submitPesapalOrder } from "../config/pesapal.js";
 
-
 // Placing orders using pesapal
 const placeOrder = async (req, res) => {
   try {
@@ -29,14 +28,14 @@ const placeOrder = async (req, res) => {
     const pesapalData = {
       id: order._id.toString(),
       currency: "KES",
-      amount: order.amount,
+      amount: Number(order.amount),
       description: `Order #${order._id}`,
-      callback_url: "https://sunmegalimited.vercel.app/payment-callback",
+      callback_url: process.env.PESAPAL_CALLBACK_URL, // backend IPN
       notification_id: process.env.PESAPAL_IPN_ID,
       billing_address: {
         email_address: order.address.email,
         phone_number: order.address.phone,
-        country: order.address.country || "KENYA",
+        country: order.address.country || "KE",
         first_name: order.address.firstName,
         last_name: order.address.lastName,
         line_1: order.address.street,
