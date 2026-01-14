@@ -69,3 +69,23 @@ export const submitPesapalOrder = async (orderData) => {
   return res.data;
 };
 
+// helper function
+export const getPesapalTransactionStatus = async (orderTrackingId) => {
+  const token = await getPesapalToken();
+
+  const res = await axios.get(
+    `${BASE_URL}/api/Transactions/GetTransactionStatus`,
+    {
+      params: { orderTrackingId },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    }
+  );
+
+  console.log("Pesapal transaction status:", res.data);
+  return res.data;
+};
+
+
