@@ -112,3 +112,23 @@ export const handlePesapalIPN = async (req, res) => {
     res.status(200).send("OK");
   }
 };
+
+//adding endpoint for status check
+export const checkPesapalStatus = async (req, res) => {
+  try {
+    const { orderTrackingId } = req.query;
+
+    if (!orderTrackingId) {
+      return res.status(400).json({ success: false, message: "Missing orderTrackingId" });
+    }
+
+    const statusData = await getPesapalTransactionStatus(orderTrackingId);
+
+    res.json({
+      success: true,
+      status: statusData.payment_status_description
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
