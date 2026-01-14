@@ -119,7 +119,10 @@ const placeOrderPesapal = async (req, res) => {
         zip_code: address.zipcode || "",
       },
     };
-    console.log('Pesapal Order Details:', JSON.stringify(pesapalOrderDetails, null, 2));
+    console.log(
+      "Pesapal Order Details:",
+      JSON.stringify(pesapalOrderDetails, null, 2)
+    );
 
     // Step 4: Submit order to Pesapal
     const pesapalResponse = await pesapal.submitOrder(pesapalOrderDetails);
@@ -145,6 +148,22 @@ const placeOrderPesapal = async (req, res) => {
   }
 };
 
+const verifyPesapalSignature = (payload, signature) => {
+  try {
+    const secret = process.env.PESAPAL_CONSUMER_SECRET;
+    if (!secret) return false;
+
+    const hmac = crypto
+      .createHmac("sha256", secret)
+      .update(payload)
+      .digest("hex");
+
+    return hmac === signature;
+  } catch (e) {
+    return false;
+  }
+};
+
 // Handle IPN (Instant Payment Notification) from Pesapal
 const handleIPN = async (req, res) => {
   try {
@@ -159,7 +178,7 @@ const handleIPN = async (req, res) => {
     try {
       // Verify signature using raw body and secret
       const isValid = verifyPesapalSignature(
-        JSON.stringify(req.query),
+        JSON.stringify(req.body || {}),
         signature
       );
 
@@ -355,11 +374,10 @@ const allorders = async (req, res) => {
 // User orders data for frontend
 const userOrders = async (req, res) => {
   try {
-     const userId = req.userId;
+    const userId = req.userId;
 
-     const orders = await orderModel.find({userId})
-     res.json({ success: true, orders });
-
+    const orders = await orderModel.find({ userId });
+    res.json({ success: true, orders });
   } catch (error) {
     logError(error, "userOrders");
     res.json({ success: false, message: "Failed to fetch user orders" });
