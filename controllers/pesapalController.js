@@ -1,7 +1,7 @@
 import { getPesapalToken } from "../config/pesapal.js";
 import { registerPesapalIPN } from "../config/pesapal.js";
 import { submitPesapalOrder } from "../config/pesapal.js";
-import { getPesapalTransactionStatus } from "../config/pesapal.js";
+import Order from "../models/orderModel.js";
 
 export const testPesapalAuth = async (req, res) => {
   try {
@@ -79,21 +79,36 @@ export const handlePesapalIPN = async (req, res) => {
 
     // Ask Pesapal for real status
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
+    const paymentStatus = statusData.payment_status_description;
 
-    /*
-      statusData.payment_status_description could be:
-      - COMPLETED
-      - FAILED
-      - PENDING
-    */
+    console.log("Final payment status:", paymentStatus);
 
-    // For now just log it (next step we update DB)
-    console.log("Final payment status:", statusData.payment_status_description);
+    // Find your order by tracking id
+    const order = await Order.findOne({ orderTrackingId: OrderTrackingId });
 
-    // Always reply 200 so Pesapal stops retrying
+    if (!order) {
+      console.log("Order not found for tracking id:", OrderTrackingId);
+      return res.status(200).send("OK");
+    }
+
+    if (paymentStatus === "COMPLETED") {
+      order.status = "Paid";
+      order.payment = true;
+    } else if (paymentStatus === "FAILED") {
+      order.status = "Payment Failed";
+      order.payment = false;
+    } else {
+      order.status = "Pending Payment";
+      order.payment = false;
+    }
+
+    await order.save();
+
+    console.log("Order updated:", order._id, order.status);
+
     res.status(200).send("OK");
   } catch (error) {
     console.error("IPN error:", error.message);
-    res.status(200).send("OK"); // still return 200
+    res.status(200).send("OK");
   }
 };
