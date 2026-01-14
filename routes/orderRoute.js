@@ -1,5 +1,5 @@
 import express from 'express'
-import { allorders, userOrders, updateStatus, handleIPN, handleCallback} from '../controllers/orderController.js'
+import { allorders, userOrders, updateStatus } from '../controllers/orderController.js'
 import adminAuth from '../middleware/adminAuth.js'
 import authUser from '../middleware/auth.js'
 import { validateOrder, handleValidationErrors } from '../middleware/validation.js'
