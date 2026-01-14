@@ -6,7 +6,7 @@ import { logError, logInfo } from "../utils/logger.js";
 // Placing orders using pesapal
 const placeOrder = async (req, res) => {
   try {
-    const userId = req.userId; // from auth middleware
+    const userId = req.userId;
     const { address, items, amount } = req.body;
 
     if (!address || !items || !items.length || !amount) {
@@ -20,7 +20,8 @@ const placeOrder = async (req, res) => {
       amount,
       status: "Pending Payment",
       payment: false,
-      createdAt: new Date()
+      paymentMethod: "Pesapal",        // required by schema
+      date: new Date().toISOString()   // required by schema
     });
 
     res.json({
@@ -34,6 +35,7 @@ const placeOrder = async (req, res) => {
     res.json({ success: false, message: "Failed to place order" });
   }
 };
+
 
 
 
