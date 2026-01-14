@@ -59,13 +59,9 @@ app.use(helmet({
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, Postman, curl) in development only
-        if (!origin) {
-            if (process.env.NODE_ENV === 'development') {
-                return callback(null, true);
-            } else {
-                return callback(new Error('Not allowed by CORS'));
-            }
-        }
+       if (!origin) {
+       return callback(null, true); // allow webhooks, Postman, curl, etc
+         }
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
