@@ -1,5 +1,9 @@
 import { getPesapalToken } from "../config/pesapal.js";
-import { submitPesapalOrder, registerPesapalIPN, getPesapalTransactionStatus } from "../config/pesapal.js";
+import {
+  submitPesapalOrder,
+  registerPesapalIPN,
+  getPesapalTransactionStatus,
+} from "../config/pesapal.js";
 import Order from "../models/orderModel.js";
 
 export const testPesapalAuth = async (req, res) => {
@@ -19,7 +23,7 @@ export const testRegisterIPN = async (req, res) => {
     if (!ipnUrl) {
       return res.status(400).json({
         success: false,
-        message: "You must provide ?url=YOUR_IPN_URL"
+        message: "You must provide ?url=YOUR_IPN_URL",
       });
     }
 
@@ -27,12 +31,12 @@ export const testRegisterIPN = async (req, res) => {
 
     res.json({
       success: true,
-      data: result
+      data: result,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -54,8 +58,8 @@ export const testSubmitOrder = async (req, res) => {
         phone_number: "0700000000",
         country: "KENYA",
         first_name: "Test",
-        last_name: "User"
-      }
+        last_name: "User",
+      },
     };
 
     const result = await submitPesapalOrder(orderData);
@@ -78,7 +82,7 @@ export const handlePesapalIPN = async (req, res) => {
 
     // Ask Pesapal for real status
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
-    const paymentStatus = statusData.payment_status_description;
+    const paymentStatus = statusData.payment_status_description?.toUpperCase();
 
     console.log("Final payment status:", paymentStatus);
 
@@ -118,14 +122,16 @@ export const checkPesapalStatus = async (req, res) => {
     const { orderTrackingId } = req.query;
 
     if (!orderTrackingId) {
-      return res.status(400).json({ success: false, message: "Missing orderTrackingId" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing orderTrackingId" });
     }
 
     const statusData = await getPesapalTransactionStatus(orderTrackingId);
 
     res.json({
       success: true,
-      status: statusData.payment_status_description
+      status: statusData.payment_status_description,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

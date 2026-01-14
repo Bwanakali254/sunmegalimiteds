@@ -61,17 +61,18 @@ app.use(helmet({
     }
 }));
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps, Postman, curl) in development only
-       if (!origin) {
-       return callback(null, true); // allow webhooks, Postman, curl, etc
-         }
-        if (allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+origin: function (origin, callback) {
+  // Allow server-to-server calls (Pesapal, webhooks, Postman)
+  if (!origin) {
+    return callback(null, true);
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+
+  return callback(new Error("Not allowed by CORS"));
+},
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'token']
