@@ -41,37 +41,10 @@ export const testRegisterIPN = async (req, res) => {
   }
 };
 
-// test controller
-export const testSubmitOrder = async (req, res) => {
-  try {
-    const ipnId = "88956793-2c59-4419-bce2-dada320a3638"; // from Step 2
-
-    const orderData = {
-      id: "TEST_ORDER_" + Date.now(),
-      currency: "KES",
-      amount: 5,
-      description: "Test Order from Backend",
-      callback_url: "https://sunmegalimited.vercel.app/payment-callback",
-      notification_id: ipnId,
-      billing_address: {
-        email_address: "test@example.com",
-        phone_number: "0700000000",
-        country: "KENYA",
-        first_name: "Test",
-        last_name: "User",
-      },
-    };
-
-    const result = await submitPesapalOrder(orderData);
-
-    res.json({ success: true, data: result });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
 
 export const handlePesapalIPN = async (req, res) => {
   try {
+    console.log(">>> IPN HIT <<<", req.method, req.query, req.body);
     const { OrderTrackingId, MerchantReference } = req.query;
 
     if (!OrderTrackingId) {

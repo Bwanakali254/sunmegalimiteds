@@ -11,7 +11,7 @@ const pesapalRouter = express.Router();
 pesapalRouter.get("/test-auth", testPesapalAuth);
 pesapalRouter.get("/test-ipn", testRegisterIPN);
 pesapalRouter.get("/test-submit", testSubmitOrder);
-pesapalRouter.get("/ipn", handlePesapalIPN);
+pesapalRouter.all("/ipn", handlePesapalIPN);
 pesapalRouter.get("/status", checkPesapalStatus);
 
 pesapalRouter.get("/list-ipns", async (req, res) => {
