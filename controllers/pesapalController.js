@@ -1,6 +1,5 @@
 import { getPesapalToken } from "../config/pesapal.js";
-import { registerPesapalIPN } from "../config/pesapal.js";
-import { submitPesapalOrder } from "../config/pesapal.js";
+import { submitPesapalOrder, registerPesapalIPN, getPesapalTransactionStatus } from "../config/pesapal.js";
 import Order from "../models/orderModel.js";
 
 export const testPesapalAuth = async (req, res) => {
