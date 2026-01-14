@@ -49,3 +49,23 @@ export const registerPesapalIPN = async (ipnUrl) => {
   return res.data;
 };
 
+// functionality to pesapal
+export const submitPesapalOrder = async (orderData) => {
+  const token = await getPesapalToken();
+
+  const res = await axios.post(
+    `${BASE_URL}/api/Transactions/SubmitOrderRequest`,
+    orderData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      }
+    }
+  );
+
+  console.log("Pesapal submit order response:", res.data);
+  return res.data;
+};
+
