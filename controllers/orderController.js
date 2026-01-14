@@ -1,6 +1,8 @@
 import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import { logError, logInfo } from "../utils/logger.js";
+import { submitPesapalOrder } from "../config/pesapal.js";
+
 
 // Placing orders using pesapal
 const placeOrder = async (req, res) => {
