@@ -44,7 +44,7 @@ export const testSubmitOrder = async (req, res) => {
     const ipnId = "88956793-2c59-4419-bce2-dada320a3638"; // from Step 2
 
     const orderData = {
-      id: "TEST_ORDER_001",
+      id: "TEST_ORDER_" + Date.now(),
       currency: "KES",
       amount: 5,
       description: "Test Order from Backend",
