@@ -60,6 +60,13 @@ app.use(helmet({
         }
     }
 }));
+
+// Allow Pesapal IPN without CORS checks
+app.use("/api/pesapal/ipn", (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
+});
+
 app.use(cors({
 origin: function (origin, callback) {
   // Allow server-to-server calls (Pesapal, webhooks, Postman)
