@@ -30,7 +30,7 @@ const placeOrder = async (req, res) => {
       currency: "KES",
       amount: Number(order.amount),
       description: `Order #${order._id}`,
-      callback_url: process.env.PESAPAL_CALLBACK_URL, // backend IPN
+      callback_url: process.env.PESAPAL_FRONTEND_CALLBACK_URL, // call back url
       notification_id: process.env.PESAPAL_IPN_ID,
       billing_address: {
         email_address: order.address.email,
