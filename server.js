@@ -30,9 +30,13 @@ connectCloudinary();
 // Middlewares
 // Define allowed origins for CORS (frontend and admin)
 const allowedOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    process.env.ADMIN_URL || 'http://localhost:5174'
-].filter(Boolean); // Remove undefined values
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL,
+  "https://sunmegalimited.vercel.app",
+  "https://sunmegalimitedadmin.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5174"
+].filter(Boolean);
 
 app.use(helmet({
     contentSecurityPolicy: {
