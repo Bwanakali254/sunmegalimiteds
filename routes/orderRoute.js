@@ -11,8 +11,6 @@ const orderRouter = express.Router()
 orderRouter.post('/list',adminAuth,allorders)
 orderRouter.post('/status',adminAuth,updateStatus)
 
-// Payment Features
-
 
 // User Features
 orderRouter.post('/userorders',authUser,userOrders)

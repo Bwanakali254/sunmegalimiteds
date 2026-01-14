@@ -12,6 +12,8 @@ import contactRouter from './routes/contactRoute.js';
 import newsletterRouter from './routes/newsletterRoute.js';
 import quoteRouter from './routes/quoteRoute.js';
 import { logInfo } from './utils/logger.js';
+import pesapalRouter from "./routes/pesapalRoute.js";
+
 
 // App config
 const app = express();
@@ -84,6 +86,8 @@ app.use('/api/order',orderRouter);
 app.use('/api/contact', contactRouter);
 app.use('/api/newsletter', newsletterRouter);
 app.use('/api/quote', quoteRouter);
+app.use("/api/pesapal", pesapalRouter);
+
 
 app.get('/', (req, res) => {
     res.send("API is Working")
