@@ -4,6 +4,37 @@ import { logError, logInfo } from "../utils/logger.js";
 
 
 // Placing orders using pesapal
+const placeOrder = async (req, res) => {
+  try {
+    const userId = req.userId; // from auth middleware
+    const { address, items, amount } = req.body;
+
+    if (!address || !items || !items.length || !amount) {
+      return res.json({ success: false, message: "Invalid order data" });
+    }
+
+    const order = await orderModel.create({
+      userId,
+      items,
+      address,
+      amount,
+      status: "Pending Payment",
+      payment: false,
+      createdAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: "Order created",
+      orderId: order._id
+    });
+
+  } catch (error) {
+    logError(error, "placeOrder");
+    res.json({ success: false, message: "Failed to place order" });
+  }
+};
+
 
 
 // All Orders data foor Admin panel
@@ -43,7 +74,8 @@ const updateStatus = async (req, res) => {
 };
 
 export {
+  placeOrder,
   allorders,
   userOrders,
-  updateStatus,
+  updateStatus
 };
