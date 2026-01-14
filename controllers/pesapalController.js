@@ -1,6 +1,5 @@
 import { getPesapalToken } from "../config/pesapal.js";
 import {
-  submitPesapalOrder,
   registerPesapalIPN,
   getPesapalTransactionStatus,
 } from "../config/pesapal.js";
@@ -41,7 +40,6 @@ export const testRegisterIPN = async (req, res) => {
   }
 };
 
-
 export const handlePesapalIPN = async (req, res) => {
   try {
     console.log(">>> IPN HIT <<<", req.method, req.query, req.body);
@@ -55,7 +53,10 @@ export const handlePesapalIPN = async (req, res) => {
 
     // Ask Pesapal for real status
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
-    const paymentStatus = statusData.payment_status_description?.toUpperCase();
+    // Support both possible response shapes
+    const paymentStatus =
+      statusData?.payment_status_description ||
+      statusData?.data?.payment_status_description;
 
     console.log("Final payment status:", paymentStatus);
 
