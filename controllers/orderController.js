@@ -2,7 +2,6 @@ import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import { logError, logInfo } from "../utils/logger.js";
 
-
 // Placing orders using pesapal
 const placeOrder = async (req, res) => {
   try {
@@ -20,24 +19,51 @@ const placeOrder = async (req, res) => {
       amount,
       status: "Pending Payment",
       payment: false,
-      paymentMethod: "Pesapal",        // required by schema
-      date: new Date().toISOString()   // required by schema
+      paymentMethod: "Pesapal", // required by schema
+      date: new Date().toISOString(), // required by schema
     });
 
+    // Build Pesapal payload from this order
+    const pesapalData = {
+      id: order._id.toString(),
+      currency: "KES",
+      amount: order.amount,
+      description: `Order #${order._id}`,
+      callback_url: "https://sunmegalimited.vercel.app/payment-callback",
+      notification_id: process.env.PESAPAL_IPN_ID,
+      billing_address: {
+        email_address: order.address.email,
+        phone_number: order.address.phone,
+        country: order.address.country || "KENYA",
+        first_name: order.address.firstName,
+        last_name: order.address.lastName,
+        line_1: order.address.street,
+        city: order.address.city,
+        state: order.address.state || "",
+        postal_code: order.address.zipcode || "",
+        zip_code: order.address.zipcode || "",
+      },
+    };
+
+    // Send order to Pesapal
+    const pesapalRes = await submitPesapalOrder(pesapalData);
+
+    // Save tracking id on order
+    order.orderTrackingId = pesapalRes.order_tracking_id;
+    await order.save();
+
+    // Send redirect URL to frontend
     res.json({
       success: true,
-      message: "Order created",
-      orderId: order._id
+      redirect_url: pesapalRes.redirect_url,
+      orderId: order._id,
+      orderTrackingId: pesapalRes.order_tracking_id,
     });
-
   } catch (error) {
     logError(error, "placeOrder");
     res.json({ success: false, message: "Failed to place order" });
   }
 };
-
-
-
 
 // All Orders data foor Admin panel
 const allorders = async (req, res) => {
@@ -75,9 +101,4 @@ const updateStatus = async (req, res) => {
   }
 };
 
-export {
-  placeOrder,
-  allorders,
-  userOrders,
-  updateStatus
-};
+export { placeOrder, allorders, userOrders, updateStatus };

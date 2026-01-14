@@ -89,3 +89,17 @@ export const getPesapalTransactionStatus = async (orderTrackingId) => {
 };
 
 
+export const getPesapalIPNs = async () => {
+  const token = await getPesapalToken();
+  const res = await axios.get(
+    `${BASE_URL}/api/URLSetup/GetIpnList`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    }
+  );
+  return res.data;
+};
+
