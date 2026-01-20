@@ -89,4 +89,68 @@ const singleProduct = async (req, res) => {
     }
 }
 
-export { addProduct, listProducts, removeProduct, singleProduct };
+// Add this to your productController.js
+const updateProduct = async (req, res) => {
+    try {
+        const { id, name, description, price, category, subCategory, brand, bestseller, quantity } = req.body;
+
+        // Get the existing product first
+        const existingProduct = await productModel.findById(id);
+        if (!existingProduct) {
+            return res.json({ success: false, message: "Product not found" });
+        }
+
+        // Start with existing images
+        let updatedImages = [...existingProduct.image];
+
+        // Handle new uploaded images
+        const newImages = [];
+        for (let i = 1; i <= 4; i++) {
+            const imageKey = `image${i}`;
+            if (req.files && req.files[imageKey] && req.files[imageKey][0]) {
+                const result = await cloudinary.uploader.upload(req.files[imageKey][0].path, { 
+                    resource_type: 'image' 
+                });
+                newImages.push({
+                    index: i - 1, // 0-based index
+                    url: result.secure_url
+                });
+            }
+        }
+
+        // Replace images at specific positions
+        newImages.forEach(({ index, url }) => {
+            if (index < updatedImages.length) {
+                updatedImages[index] = url;
+            } else {
+                updatedImages.push(url);
+            }
+        });
+
+        const updatedProduct = await productModel.findByIdAndUpdate(
+            id,
+            {
+                name,
+                description,
+                category,
+                price: Number(price),
+                subCategory,
+                brand,
+                bestseller: bestseller === "true" || bestseller === true,
+                quantity: Number(quantity),
+                image: updatedImages,
+            },
+            { new: true }
+        );
+
+        logInfo(`Product updated: ${id}`, 'updateProduct');
+        res.json({ success: true, message: "Product Updated Successfully" });
+
+    } catch (error) {
+        logError(error, 'updateProduct');
+        res.json({ success: false, message: "Failed to update product" });
+    }
+};
+
+// Add to your exports
+export { addProduct, listProducts, removeProduct, singleProduct, updateProduct };

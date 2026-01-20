@@ -370,7 +370,8 @@ const getOTPEmailTemplate = (userName, otpCode, purpose) => {
         'signup': 'complete your registration',
         'password_change': 'change your password',
         'email_change': 'change your email',
-        'verification': 'verify your email'
+        'verification': 'verify your email',
+        'admin_login': 'complete your admin login'
     }[purpose] || 'verify your account';
 
     return `
@@ -435,35 +436,31 @@ const getOTPEmailTemplate = (userName, otpCode, purpose) => {
  * @param {string} params.name - User name
  * @param {string} params.otpCode - 6-digit OTP code
  * @param {string} params.purpose - OTP purpose (signup, password_change, email_change, verification)
+ * @throws {Error} If email sending fails
  */
 export const sendOTPEmail = async ({ email, name, otpCode, purpose }) => {
-    try {
-        if (!email || !otpCode) {
-            logError(new Error('Invalid email or OTP code'), 'sendOTPEmail');
-            return;
-        }
+    if (!email || !otpCode) {
+        throw new Error('Invalid email or OTP code');
+    }
 
         const purposeText = {
             'signup': 'Complete Registration',
             'password_change': 'Change Password',
             'email_change': 'Change Email',
-            'verification': 'Verify Email'
+            'verification': 'Verify Email',
+            'admin_login': 'Admin Login Verification'
         }[purpose] || 'Verify Your Account';
 
-        const html = getOTPEmailTemplate(name, otpCode, purpose);
-        const text = `Verify Your Email\n\nHi ${name || 'there'},\n\nUse this code to verify your email:\n\n${otpCode}\n\nThis code will expire in 10 minutes. If you didn't request this code, please ignore this email.\n\nBest regards,\nSun Mega Team`;
+    const html = getOTPEmailTemplate(name, otpCode, purpose);
+    const text = `Verify Your Email\n\nHi ${name || 'there'},\n\nUse this code to verify your email:\n\n${otpCode}\n\nThis code will expire in 10 minutes. If you didn't request this code, please ignore this email.\n\nBest regards,\nSun Mega Team`;
 
-        await sendEmail({
-            to: email,
-            from: EMAIL_NO_REPLY,
-            subject: `Your Sun Mega Verification Code - ${purposeText}`,
-            html,
-            text,
-        });
-    } catch (error) {
-        logError(error, 'sendOTPEmail');
-        // Don't throw - fire-and-forget pattern
-    }
+    await sendEmail({
+        to: email,
+        from: EMAIL_NO_REPLY,
+        subject: `Your Sun Mega Verification Code - ${purposeText}`,
+        html,
+        text,
+    });
 };
 
 /**
@@ -603,6 +600,93 @@ const getQuoteAutoReplyTemplate = (userName) => {
 </body>
 </html>
     `.trim();
+};
+
+/**
+ * Generate admin invite email HTML template
+ */
+const getAdminInviteEmailTemplate = (userName, tempPassword) => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Invitation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                    <tr>
+                        <td style="background-color: #22c55e; padding: 30px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Admin Invitation</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Hi ${userName ? userName : 'there'},
+                            </p>
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                You have been invited as an administrator for Sun Mega Limited.
+                            </p>
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Your temporary password is:
+                            </p>
+                            <div style="background-color: #f9f9f9; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                                <p style="color: #22c55e; font-size: 24px; font-weight: bold; margin: 0; font-family: 'Courier New', monospace;">
+                                    ${tempPassword}
+                                </p>
+                            </div>
+                            <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+                                <strong>Important:</strong> You will be required to change this password on your first login. Please keep this information secure.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+                            <p style="color: #666666; font-size: 14px; margin: 0;">
+                                &copy; ${new Date().getFullYear()} Sun Mega. All rights reserved.
+                            </p>
+                            <p style="color: #666666; font-size: 14px; margin: 10px 0 0 0;">
+                                Saramala round, 2nd floor, 2c Mombasa, Kenya
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `.trim();
+};
+
+/**
+ * Send admin invitation email
+ * @param {Object} params - Admin invite parameters
+ * @param {string} params.email - Admin email address
+ * @param {string} params.name - Admin name
+ * @param {string} params.tempPassword - Temporary password
+ * @throws {Error} If email sending fails
+ */
+export const sendAdminInviteEmail = async ({ email, name, tempPassword }) => {
+    if (!email || !tempPassword) {
+        throw new Error('Invalid email or temporary password');
+    }
+
+    const html = getAdminInviteEmailTemplate(name, tempPassword);
+    const text = `Admin Invitation\n\nHi ${name || 'there'},\n\nYou have been invited as an administrator for Sun Mega Limited.\n\nYour temporary password is:\n${tempPassword}\n\nImportant: You will be required to change this password on your first login. Please keep this information secure.\n\nBest regards,\nSun Mega Team`;
+
+    await sendEmail({
+        to: email,
+        from: EMAIL_NO_REPLY,
+        subject: 'Sun Mega Admin Invitation',
+        html,
+        text,
+    });
 };
 
 /**

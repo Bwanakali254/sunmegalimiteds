@@ -8,6 +8,11 @@ const userSchema = new mongoose.Schema({
     authProvider: { type: String, enum: ['email', 'google'], default: 'email' },
     cartData: { type: Object, default: {} },
     
+    // Role-based access control
+    role: { type: String, enum: ['user', 'admin', 'super_admin'], default: 'user' },
+    mustResetPassword: { type: Boolean, default: false },
+    otpVerified: { type: Boolean, default: false },
+    
     // Profile fields
     phone: { type: String, required: false },
     address: {
@@ -25,7 +30,7 @@ const userSchema = new mongoose.Schema({
     otpCode: { type: String, required: false },
     otpExpires: { type: Date, required: false },
     otpAttempts: { type: Number, default: 0 },
-    otpPurpose: { type: String, enum: ['signup', 'password_change', 'email_change', 'verification'], required: false },
+    otpPurpose: { type: String, enum: ['signup', 'password_change', 'email_change', 'verification', 'admin_login'], required: false },
     
     // Preferences
     currency: { type: String, enum: ['KES', 'USD', 'EUR'], default: 'KES' },
@@ -45,6 +50,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ emailVerified: 1 });
 userSchema.index({ otpExpires: 1 });
 userSchema.index({ createdAt: 1 });
+userSchema.index({ role: 1 });
 
 const userModel = mongoose.models.user || mongoose.model("User", userSchema);
 

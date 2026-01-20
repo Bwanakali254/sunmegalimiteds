@@ -13,6 +13,7 @@ import newsletterRouter from './routes/newsletterRoute.js';
 import quoteRouter from './routes/quoteRoute.js';
 import { logInfo } from './utils/logger.js';
 import pesapalRouter from "./routes/pesapalRoute.js";
+import { bootstrapSuperAdmin } from './controllers/userController.js';
 
 
 // App config
@@ -24,8 +25,14 @@ if (process.env.TRUST_PROXY === 'true') {
     app.set('trust proxy', 1);
 }
 
-connectDB();
-connectCloudinary();
+// Initialize database and bootstrap super admin
+const initializeServer = async () => {
+    await connectDB();
+    await bootstrapSuperAdmin();
+    connectCloudinary();
+};
+
+initializeServer();
 
 // Middlewares
 // Define allowed origins for CORS (frontend and admin)
@@ -35,7 +42,8 @@ const allowedOrigins = [
   "https://sunmegalimited.vercel.app",
   "https://sunmegalimitedadmin.vercel.app",
   "http://localhost:5173",
-  "http://localhost:5174"
+  "http://localhost:5174",
+  "http://localhost:8080"
 ].filter(Boolean);
 
 app.use(helmet({

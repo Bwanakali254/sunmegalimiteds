@@ -2,14 +2,57 @@ import validator from 'validator';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import userModel from '../models/userModel.js';
-import { logError } from '../utils/logger.js';
+import { logError, logInfo } from '../utils/logger.js';
 import { verifyGoogleToken } from '../services/googleAuth.js';
 
 
-const ccreateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+const ccreateToken = (id, role) => {
+  return jwt.sign({ id, role }, process.env.JWT_SECRET, {
     expiresIn: '7d',
   });
+}
+
+// Bootstrap super admin on server start
+const bootstrapSuperAdmin = async () => {
+    try {
+        // Check if super admin already exists
+        const existingSuperAdmin = await userModel.findOne({ role: 'super_admin' });
+        
+        if (existingSuperAdmin) {
+            logInfo('Super admin already exists', 'bootstrapSuperAdmin');
+            return;
+        }
+
+        // Get credentials from environment
+        const email = process.env.SUPER_ADMIN_EMAIL;
+        const password = process.env.SUPER_ADMIN_PASSWORD;
+
+        if (!email || !password) {
+            logError(new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set to create super admin'), 'bootstrapSuperAdmin');
+            return;
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create super admin
+        const superAdmin = new userModel({
+            name: 'Super Admin',
+            email: email,
+            password: hashedPassword,
+            role: 'super_admin',
+            mustResetPassword: true,
+            otpVerified: false,
+            emailVerified: true,
+            authProvider: 'email'
+        });
+
+        await superAdmin.save();
+        logInfo('Super admin created successfully', 'bootstrapSuperAdmin');
+    } catch (error) {
+        logError(error, 'bootstrapSuperAdmin');
+    }
 }
 
 // Generate 6-digit OTP
@@ -98,13 +141,16 @@ const registerUser = async (req, res) => {
 
         const user = await newUser.save();
 
-        // Fire-and-forget OTP email (non-blocking)
+        // Send OTP email - fail if email cannot be sent
         try {
             const { sendOTPEmail } = await import('../services/emailService.js');
-            sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'signup' })
-                .catch(err => logError(err, 'registerUser-otpEmail'));
+            await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'signup' });
         } catch (emailError) {
             logError(emailError, 'registerUser-otpEmail');
+            return res.json({
+                success: false,
+                message: "Failed to send verification email. Please try again."
+            });
         }
 
         // Return requiresVerification flag instead of token
@@ -123,21 +169,74 @@ const registerUser = async (req, res) => {
 // Route for Admin login
 const adminLogin = async (req, res) => {
    try {
-   
          const { email, password } = req.body;
 
-         if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-            // Create structured JWT payload with role and email
-            const payload = {
-               email: email,
-               role: 'admin'
-            };
-            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-            res.json({success:true, token})
+         // Find user by email
+         const user = await userModel.findOne({ email });
+         
+         if (!user) {
+             return res.json({ success: false, message: "Invalid credentials" });
          }
-         else {
-            res.json({success:false, message: "Invalid admin credentials"})
+
+         // Check if user is admin or super_admin
+         if (user.role !== 'admin' && user.role !== 'super_admin') {
+             return res.json({ success: false, message: "Access denied" });
          }
+
+         // Verify password
+         if (!user.password) {
+             return res.json({ success: false, message: "Invalid credentials" });
+         }
+
+         const isMatch = await bcrypt.compare(password, user.password);
+         if (!isMatch) {
+             return res.json({ success: false, message: "Invalid credentials" });
+         }
+
+         // Check if must reset password
+         if (user.mustResetPassword) {
+             return res.json({
+                 success: true,
+                 mustResetPassword: true,
+                 userId: user._id,
+                 message: "You must reset your password before continuing"
+             });
+         }
+
+         // Generate and send OTP
+         const otpCode = generateOTP();
+         const otpExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour (temporary for testing)
+
+         user.otpCode = otpCode;
+         user.otpExpires = otpExpires;
+         user.otpAttempts = 0;
+         user.otpPurpose = 'admin_login';
+         user.otpVerified = false;
+         
+         console.log("Admin Login - Setting OTP Purpose:", user.otpPurpose);
+         console.log("Admin Login - OTP Expires at:", otpExpires);
+         console.log("Admin Login - Current time:", new Date());
+         await user.save();
+         console.log("Admin Login - User saved with OTP Purpose:", user.otpPurpose);
+
+         // Send OTP email
+         try {
+             const { sendOTPEmail } = await import('../services/emailService.js');
+             await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'admin_login' });
+         } catch (emailError) {
+             logError(emailError, 'adminLogin-otpEmail');
+             return res.json({
+                 success: false,
+                 message: "Failed to send verification code. Please try again."
+             });
+         }
+
+         res.json({
+             success: true,
+             requiresOTP: true,
+             userId: user._id,
+             message: "Verification code sent to your email"
+         });
 
    } catch (error) {
        logError(error, 'adminLogin');
@@ -350,6 +449,8 @@ const sendOTP = async (req, res) => {
             }
         }
 
+        console.log("sendOTP called for:", user.email, "role:", user.role, "setting purpose:", purpose);
+
         // Generate OTP
         const otpCode = generateOTP();
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -361,13 +462,16 @@ const sendOTP = async (req, res) => {
         user.otpPurpose = purpose;
         await user.save();
 
-        // Fire-and-forget OTP email (non-blocking)
+        // Send OTP email - fail if email cannot be sent
         try {
             const { sendOTPEmail } = await import('../services/emailService.js');
-            sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose })
-                .catch(err => logError(err, 'sendOTP-email'));
+            await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose });
         } catch (emailError) {
             logError(emailError, 'sendOTP-email');
+            return res.json({
+                success: false,
+                message: "Failed to send OTP email. Please try again."
+            });
         }
 
         res.json({
@@ -384,37 +488,79 @@ const sendOTP = async (req, res) => {
 // Verify OTP
 const verifyOTP = async (req, res) => {
     try {
-        const { email, otpCode, purpose } = req.body;
+        let { email, otpCode, purpose } = req.body;
 
         if (!email || !otpCode || !purpose) {
             return res.json({ success: false, message: "Email, OTP code, and purpose are required" });
         }
+
+        // Ensure otpCode is string and normalize purpose to lowercase
+        otpCode = String(otpCode);
+        purpose = purpose.toLowerCase();
 
         const user = await userModel.findOne({ email });
         if (!user) {
             return res.json({ success: false, message: "Verification failed" }); // Generic message for security
         }
 
-        // Check OTP
+        // Debug logs for expiry troubleshooting
+        console.log("=== OTP Expiry Debug ===");
+        console.log("Now:", new Date());
+        console.log("OTP Expires:", user.otpExpires);
+        console.log("Now (timestamp):", Date.now());
+        console.log("Expires (timestamp):", user.otpExpires ? user.otpExpires.getTime() : null);
+        console.log("Is Expired:", user.otpExpires ? user.otpExpires.getTime() < Date.now() : true);
+        console.log("========================");
+
+        // Check expiration FIRST (before checking code or incrementing attempts)
+        // Use timestamps for reliable comparison
+        if (!user.otpExpires || user.otpExpires.getTime() < Date.now()) {
+            // Clear expired OTP fields
+            user.otpCode = null;
+            user.otpExpires = null;
+            user.otpAttempts = 0;
+            user.otpPurpose = null;
+            await user.save();
+            return res.json({ success: false, message: "This code has expired. Please request a new one." });
+        }
+
+        // Check attempts before code comparison
+        if (user.otpAttempts >= 5) {
+            return res.json({ success: false, message: "Too many failed attempts. Please request a new OTP code." });
+        }
+
+        // Check OTP code
         if (!user.otpCode || user.otpCode !== otpCode) {
             user.otpAttempts = (user.otpAttempts || 0) + 1;
             await user.save();
             return res.json({ success: false, message: "Invalid code. Please try again." });
         }
 
-        // Check expiration
-        if (!user.otpExpires || user.otpExpires < new Date()) {
-            return res.json({ success: false, message: "This code has expired. Please request a new one." });
-        }
+        // DB user snapshot before purpose check
+        console.log("=== DB USER SNAPSHOT BEFORE PURPOSE CHECK ===");
+        console.log("DB user snapshot before purpose check:", {
+            email: user.email,
+            role: user.role,
+            otpCode: user.otpCode,
+            otpPurpose: user.otpPurpose,
+            otpExpires: user.otpExpires,
+            otpVerified: user.otpVerified,
+        });
+        console.log("=============================================");
 
-        // Check attempts
-        if (user.otpAttempts >= 5) {
-            return res.json({ success: false, message: "Too many failed attempts. Please request a new OTP code." });
-        }
-
-        // Check purpose matches
-        if (user.otpPurpose !== purpose) {
-            return res.json({ success: false, message: "Invalid verification code." });
+        // Check purpose matches (normalize stored purpose to lowercase)
+        const storedPurpose = (user.otpPurpose || '').toLowerCase();
+        
+        // Debug logs for admin login troubleshooting
+        console.log("=== OTP Purpose Debug ===");
+        console.log("Stored purpose:", user.otpPurpose);
+        console.log("Stored purpose (normalized):", storedPurpose);
+        console.log("Received purpose:", purpose);
+        console.log("Match:", storedPurpose === purpose);
+        console.log("========================");
+        
+        if (storedPurpose !== purpose) {
+            return res.json({ success: false, message: "Invalid verification code purpose." });
         }
 
         // OTP is valid - clear OTP fields
@@ -437,7 +583,7 @@ const verifyOTP = async (req, res) => {
                 logError(emailError, 'verifyOTP-welcomeEmail');
             }
             
-            const token = ccreateToken(user._id);
+            const token = ccreateToken(user._id, user.role);
             return res.json({
                 success: true,
                 message: "Email verified successfully",
@@ -449,6 +595,19 @@ const verifyOTP = async (req, res) => {
             return res.json({
                 success: true,
                 message: "Email verified successfully"
+            });
+        } else if (purpose === 'admin_login') {
+            // Admin login verification
+            user.otpVerified = true;
+            user.lastLogin = new Date();
+            await user.save();
+            
+            const token = ccreateToken(user._id, user.role);
+            return res.json({
+                success: true,
+                message: "Admin login verified successfully",
+                token,
+                role: user.role
             });
         } else {
             // For password_change, email_change - just verify OTP, don't change anything yet
@@ -464,4 +623,144 @@ const verifyOTP = async (req, res) => {
     }
 }
 
-export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP };
+// Invite admin (super_admin only)
+const inviteAdmin = async (req, res) => {
+    try {
+        const { email, name } = req.body;
+
+        if (!email || !name) {
+            return res.json({ success: false, message: "Email and name are required" });
+        }
+
+        // Validate email
+        if (!validator.isEmail(email)) {
+            return res.json({ success: false, message: "Please enter a valid email" });
+        }
+
+        // Check if user already exists
+        const existingUser = await userModel.findOne({ email });
+        if (existingUser) {
+            return res.json({ success: false, message: "User with this email already exists" });
+        }
+
+        // Generate random temporary password
+        const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(tempPassword, salt);
+
+        // Create admin user
+        const newAdmin = new userModel({
+            name,
+            email,
+            password: hashedPassword,
+            role: 'admin',
+            mustResetPassword: true,
+            otpVerified: false,
+            emailVerified: true,
+            authProvider: 'email'
+        });
+
+        await newAdmin.save();
+
+        // Send invitation email
+        try {
+            const { sendAdminInviteEmail } = await import('../services/emailService.js');
+            await sendAdminInviteEmail({ email, name, tempPassword });
+        } catch (emailError) {
+            logError(emailError, 'inviteAdmin-email');
+            return res.json({
+                success: false,
+                message: "Failed to send invitation email. Please try again."
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Admin invited successfully"
+        });
+
+    } catch (error) {
+        logError(error, 'inviteAdmin');
+        res.json({ success: false, message: "Failed to invite admin" });
+    }
+}
+
+// Reset admin password
+const resetAdminPassword = async (req, res) => {
+    try {
+        const { userId, currentPassword, newPassword } = req.body;
+
+        if (!userId || !newPassword) {
+            return res.json({ success: false, message: "User ID and new password are required" });
+        }
+
+        if (newPassword.length < 8) {
+            return res.json({ success: false, message: "Password must be at least 8 characters" });
+        }
+
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        console.log("resetAdminPassword called for:", user.email, "setting purpose: admin_login");
+
+        // If mustResetPassword is true, don't require current password
+        if (!user.mustResetPassword && currentPassword) {
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+            if (!isMatch) {
+                return res.json({ success: false, message: "Current password is incorrect" });
+            }
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user
+        user.password = hashedPassword;
+        user.mustResetPassword = false;
+        user.passwordChangedAt = new Date();
+        await user.save();
+
+        // Generate OTP for admin login
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour (temporary for testing)
+
+        user.otpCode = otpCode;
+        user.otpExpires = otpExpires;
+        user.otpAttempts = 0;
+        user.otpPurpose = 'admin_login';
+        user.otpVerified = false;
+        
+        console.log("Reset Password - Setting OTP Purpose:", user.otpPurpose);
+        console.log("Reset Password - OTP Expires at:", otpExpires);
+        console.log("Reset Password - Current time:", new Date());
+        await user.save();
+        console.log("Reset Password - User saved with OTP Purpose:", user.otpPurpose);
+
+        // Send OTP email
+        try {
+            const { sendOTPEmail } = await import('../services/emailService.js');
+            await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'admin_login' });
+        } catch (emailError) {
+            logError(emailError, 'resetAdminPassword-otpEmail');
+            return res.json({
+                success: false,
+                message: "Password updated but failed to send verification code. Please try logging in again."
+            });
+        }
+
+        res.json({
+            success: true,
+            requiresOTP: true,
+            message: "Password updated successfully. Verification code sent to your email."
+        });
+
+    } catch (error) {
+        logError(error, 'resetAdminPassword');
+        res.json({ success: false, message: "Failed to reset password" });
+    }
+}
+
+export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, inviteAdmin, resetAdminPassword };
