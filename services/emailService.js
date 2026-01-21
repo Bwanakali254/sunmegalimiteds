@@ -1300,6 +1300,219 @@ export const sendAdminPaymentReceivedEmail = async ({ order, user }) => {
 };
 
 /**
+ * Generate payment failed email HTML template (Customer)
+ */
+const getPaymentFailedTemplate = (order, user) => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Failed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                    <tr>
+                        <td style="background-color: #ef4444; padding: 30px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Payment Failed</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Hi ${user?.name || 'there'},
+                            </p>
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Unfortunately, we were unable to process your payment for order <strong>#${order._id}</strong>.
+                            </p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 15px; background-color: #fef2f2; border-radius: 8px; border: 2px solid #ef4444;">
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Order ID</p>
+                                        <p style="color: #ef4444; font-size: 18px; font-weight: bold; margin: 0 0 10px 0;">#${order._id}</p>
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Amount</p>
+                                        <p style="color: #333333; font-size: 20px; font-weight: bold; margin: 0;">KES ${Number(order.amount).toLocaleString()}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                                <p style="color: #991b1b; font-size: 14px; font-weight: bold; margin: 0 0 10px 0;">What This Means:</p>
+                                <ul style="color: #991b1b; font-size: 14px; margin: 0; padding-left: 20px;">
+                                    <li>Your payment did not go through</li>
+                                    <li>Your order has not been processed</li>
+                                    <li>No charges were made to your account</li>
+                                </ul>
+                            </div>
+                            <h3 style="color: #333333; font-size: 18px; margin: 30px 0 15px 0;">What You Can Do:</h3>
+                            <ol style="color: #666666; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                                <li><strong>Check your payment details:</strong> Ensure your payment information was entered correctly</li>
+                                <li><strong>Verify your account:</strong> Make sure you have sufficient funds or credit available</li>
+                                <li><strong>Try again:</strong> Place a new order and complete the payment process</li>
+                                <li><strong>Contact your bank:</strong> Some payments are declined by banks for security reasons</li>
+                                <li><strong>Need help?</strong> Contact our support team at <a href="mailto:${EMAIL_SUPPORT}" style="color: #ef4444; text-decoration: none;">${EMAIL_SUPPORT}</a></li>
+                            </ol>
+                            <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 30px 0 0 0;">
+                                We apologize for any inconvenience. If you continue to experience issues, our support team is here to help.
+                            </p>
+                        </td>
+                    </tr>
+                    ${getLegalFooter()}
+                    <tr>
+                        <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+                            <p style="color: #666666; font-size: 14px; margin: 0;">
+                                &copy; ${new Date().getFullYear()} Sun Mega Limited. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `.trim();
+};
+
+/**
+ * Generate payment failed notification email HTML template (Admin)
+ */
+const getAdminPaymentFailedTemplate = (order, user) => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Failed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                    <tr>
+                        <td style="background-color: #ef4444; padding: 30px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Payment Failed</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Payment processing failed for order <strong>#${order._id}</strong>.
+                            </p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 15px; background-color: #fef2f2; border-radius: 8px; border: 2px solid #ef4444;">
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Order ID</p>
+                                        <p style="color: #ef4444; font-size: 18px; font-weight: bold; margin: 0 0 15px 0;">#${order._id}</p>
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Payment Reference</p>
+                                        <p style="color: #333333; font-size: 14px; margin: 0 0 15px 0;">${order.orderTrackingId || 'N/A'}</p>
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Amount</p>
+                                        <p style="color: #333333; font-size: 18px; font-weight: bold; margin: 0;">KES ${Number(order.amount).toLocaleString()}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <h3 style="color: #333333; font-size: 18px; margin: 30px 0 15px 0;">Customer Information</h3>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border-radius: 8px; padding: 15px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Name</p>
+                                        <p style="color: #333333; font-size: 14px; font-weight: bold; margin: 0 0 15px 0;">${user?.name || 'N/A'}</p>
+                                        <p style="color: #666666; font-size: 14px; margin: 0 0 5px 0;">Email</p>
+                                        <p style="color: #333333; font-size: 14px; font-weight: bold; margin: 0;">${user?.email || order.address?.email || 'N/A'}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                                <p style="color: #991b1b; font-size: 14px; font-weight: bold; margin: 0 0 10px 0;">Action Required:</p>
+                                <p style="color: #991b1b; font-size: 14px; margin: 0;">Monitor for customer retry or contact if needed. Order will not be processed until payment is successful.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    ${getLegalFooter()}
+                    <tr>
+                        <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+                            <p style="color: #666666; font-size: 14px; margin: 0;">
+                                This is an automated notification from Sun Mega order management system.
+                            </p>
+                            <p style="color: #666666; font-size: 14px; margin: 5px 0 0 0;">
+                                &copy; ${new Date().getFullYear()} Sun Mega Limited. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `.trim();
+};
+
+/**
+ * Send payment failed email to customer
+ * @param {Object} params - Email parameters
+ * @param {string} params.to - Customer email
+ * @param {Object} params.order - Order object
+ * @param {Object} params.user - User object
+ */
+export const sendPaymentFailedEmail = async ({ to, order, user }) => {
+    try {
+        if (!to || !order) {
+            logError(new Error('Invalid data for payment failed email'), 'sendPaymentFailedEmail');
+            return;
+        }
+
+        const html = getPaymentFailedTemplate(order, user);
+        const text = `Payment Failed\n\nHi ${user?.name || 'there'},\n\nUnfortunately, we were unable to process your payment for order #${order._id}.\n\nOrder ID: #${order._id}\nAmount: KES ${Number(order.amount).toLocaleString()}\n\nWhat This Means:\n- Your payment did not go through\n- Your order has not been processed\n- No charges were made to your account\n\nWhat You Can Do:\n1. Check your payment details and ensure they were entered correctly\n2. Verify you have sufficient funds or credit available\n3. Try placing a new order and complete the payment process\n4. Contact your bank if the issue persists\n5. Need help? Contact us at ${EMAIL_SUPPORT}\n\nWe apologize for any inconvenience.\n\nBest regards,\nSun Mega Team`;
+
+        await sendEmail({
+            to,
+            from: EMAIL_NO_REPLY,
+            subject: `Payment Failed - Order #${order._id}`,
+            html,
+            text,
+        });
+    } catch (error) {
+        logError(error, 'sendPaymentFailedEmail');
+        // Don't throw - fire-and-forget pattern
+    }
+};
+
+/**
+ * Send payment failed notification to admin
+ * @param {Object} params - Email parameters
+ * @param {Object} params.order - Order object
+ * @param {Object} params.user - User object
+ */
+export const sendAdminPaymentFailedEmail = async ({ order, user }) => {
+    try {
+        if (!order) {
+            logError(new Error('Invalid data for admin payment failed email'), 'sendAdminPaymentFailedEmail');
+            return;
+        }
+
+        const html = getAdminPaymentFailedTemplate(order, user);
+        const text = `Payment Failed\n\nPayment processing failed for order #${order._id}.\n\nOrder ID: #${order._id}\nPayment Reference: ${order.orderTrackingId || 'N/A'}\nAmount: KES ${Number(order.amount).toLocaleString()}\nCustomer: ${user?.name || 'N/A'}\nEmail: ${user?.email || order.address?.email || 'N/A'}\nStatus: Payment Failed\n\nAction Required: Monitor for customer retry or contact if needed. Order will not be processed until payment is successful.\n\nThis is an automated notification from Sun Mega order management system.`;
+
+        await sendEmail({
+            to: EMAIL_SUPPORT,
+            from: EMAIL_NO_REPLY,
+            subject: `Payment Failed - Order #${order._id}`,
+            html,
+            text,
+        });
+    } catch (error) {
+        logError(error, 'sendAdminPaymentFailedEmail');
+        // Don't throw - fire-and-forget pattern
+    }
+};
+
+/**
  * Generate order processing email HTML template (Customer)
  */
 const getOrderProcessingTemplate = (order, user) => {
