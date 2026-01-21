@@ -6,7 +6,7 @@ const adminAuth = async (req, res, next) => {
     try {
         const { token } = req.headers;
         if (!token) {
-            return res.json({ success: false, message: "No Authorized Login Again" });
+            return res.status(401).json({ success: false, message: "No Authorized Login Again", tokenExpired: false });
         }
         
         // Verify and decode token as JWT object
@@ -14,23 +14,23 @@ const adminAuth = async (req, res, next) => {
         
         // Check if decoded payload has admin or super_admin role
         if (decoded.role !== 'admin' && decoded.role !== 'super_admin') {
-            return res.json({ success: false, message: "Access denied" });
+            return res.status(403).json({ success: false, message: "Access denied" });
         }
 
         // Verify user exists and check otpVerified
         const user = await userModel.findById(decoded.id);
         if (!user) {
-            return res.json({ success: false, message: "User not found" });
+            return res.status(404).json({ success: false, message: "User not found" });
         }
 
         // Check if OTP was verified (for admin login security)
         if (!user.otpVerified) {
-            return res.json({ success: false, message: "Session not verified. Please login again." });
+            return res.status(403).json({ success: false, message: "Session not verified. Please login again." });
         }
 
         // Check if user still has admin/super_admin role
         if (user.role !== 'admin' && user.role !== 'super_admin') {
-            return res.json({ success: false, message: "Access denied" });
+            return res.status(403).json({ success: false, message: "Access denied" });
         }
 
         req.userId = decoded.id;
@@ -38,7 +38,10 @@ const adminAuth = async (req, res, next) => {
         next();
     } catch (error) {
         logError(error, 'adminAuth');
-        res.json({ success: false, message: "Invalid admin credentials" })
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ success: false, message: "Token expired", tokenExpired: true });
+        }
+        res.status(401).json({ success: false, message: "Invalid admin credentials", tokenExpired: false })
     }
 }
 

@@ -12,10 +12,24 @@ export const handlePesapalIPN = async (req, res) => {
     const { OrderTrackingId } = req.query;
 
     if (!OrderTrackingId) {
+      logError(new Error('IPN received without OrderTrackingId'), 'handlePesapalIPN');
+      return res.status(200).send("OK");
+    }
+    
+    // Validate OrderTrackingId format (basic validation)
+    if (typeof OrderTrackingId !== 'string' || OrderTrackingId.length < 10) {
+      logError(new Error(`Invalid OrderTrackingId format: ${OrderTrackingId}`), 'handlePesapalIPN');
       return res.status(200).send("OK");
     }
 
+    // Verify transaction status directly from Pesapal (security measure)
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
+    
+    // Validate response from Pesapal
+    if (!statusData || (!statusData.payment_status_description && !statusData?.data?.payment_status_description)) {
+      logError(new Error(`Invalid Pesapal response for OrderTrackingId: ${OrderTrackingId}`), 'handlePesapalIPN');
+      return res.status(200).send("OK");
+    }
 
     const paymentStatus =
       statusData?.payment_status_description ||
@@ -24,9 +38,12 @@ export const handlePesapalIPN = async (req, res) => {
     const order = await Order.findOne({ orderTrackingId: OrderTrackingId });
 
     if (!order) {
-      console.log("Order not found:", OrderTrackingId);
+      logError(new Error(`Order not found for OrderTrackingId: ${OrderTrackingId}`), 'handlePesapalIPN');
       return res.status(200).send("OK");
     }
+    
+    // Log IPN processing
+    console.log(`IPN Processing: OrderTrackingId=${OrderTrackingId}, Status=${paymentStatus}, OrderId=${order._id}`);
 
     if (paymentStatus === "COMPLETED") {
       order.status = "Paid";

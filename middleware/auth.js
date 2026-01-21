@@ -6,7 +6,7 @@ const authUser = (req, res, next) => {
   const { token } = req.headers;
 
     if (!token) {
-        return res.json({ success: false, message: 'No token, authorization denied' });
+        return res.status(401).json({ success: false, message: 'No token, authorization denied', tokenExpired: false });
     }
 
     try {
@@ -17,7 +17,10 @@ const authUser = (req, res, next) => {
 
     } catch (error) {
        logError(error, 'authUser');
-         return res.json({ success: false, message: error.message });
+       if (error.name === 'TokenExpiredError') {
+           return res.status(401).json({ success: false, message: 'Token expired', tokenExpired: true });
+       }
+       return res.status(401).json({ success: false, message: 'Invalid token', tokenExpired: false });
     }
 
 }

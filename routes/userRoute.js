@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion } from '../controllers/userController.js';
+import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion, refreshAccessToken } from '../controllers/userController.js';
 import { authRateLimit, otpSendRateLimit, otpVerifyRateLimit } from '../middleware/rateLimit.js';
 import { validateRegister, validateLogin, validateAdminLogin, validateGoogleAuth, validateProfileUpdate, validateSendOTP, validateVerifyOTP, validatePasswordResetRequest, validatePasswordReset, validateEmailChangeRequest, validateAccountDeletionRequest, handleValidationErrors } from '../middleware/validation.js';
 import authUser from '../middleware/auth.js';
@@ -37,6 +37,7 @@ userRouter.post('/register', authRateLimit, validateRegister, handleValidationEr
 userRouter.post('/login', authRateLimit, validateLogin, handleValidationErrors, loginUser)
 userRouter.post('/admin', authRateLimit, validateAdminLogin, handleValidationErrors, adminLogin)
 userRouter.post('/google', authRateLimit, validateGoogleAuth, handleValidationErrors, googleAuth)
+userRouter.post('/refresh-token', refreshAccessToken)
 
 // Profile routes
 userRouter.get('/profile', authUser, getUserProfile)

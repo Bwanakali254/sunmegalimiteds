@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 import productModel from '../models/productModel.js';
 import { logError, logInfo } from '../utils/logger.js';
+import fs from 'fs';
 
 // function for add product
 const addProduct = async (req, res) => {
@@ -111,6 +112,12 @@ const updateProduct = async (req, res) => {
                 const result = await cloudinary.uploader.upload(req.files[imageKey][0].path, { 
                     resource_type: 'image' 
                 });
+                // Clean up local file after upload
+                try {
+                    fs.unlinkSync(req.files[imageKey][0].path);
+                } catch (unlinkError) {
+                    logError(unlinkError, 'updateProduct-cleanup');
+                }
                 newImages.push({
                     index: i - 1, // 0-based index
                     url: result.secure_url

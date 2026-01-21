@@ -109,5 +109,26 @@ app.get('/', (req, res) => {
     res.send("API is Working")
 })
 
+// Central error handling middleware (must be after all routes)
+app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Internal server error';
+    
+    logError(err, 'centralErrorHandler');
+    
+    res.status(statusCode).json({
+        success: false,
+        message: message
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: 'Route not found'
+    });
+});
+
 // Listen
 app.listen(port, () => logInfo(`Server is running on port: ${port}`, 'server'));

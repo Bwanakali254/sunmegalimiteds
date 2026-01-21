@@ -44,7 +44,10 @@ const userSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
     passwordChangedAt: { type: Date, required: false },
-    lastLogin: { type: Date, required: false }
+    lastLogin: { type: Date, required: false },
+    
+    // Refresh token
+    refreshToken: { type: String, required: false }
 },{minimize: false});
 
 // Indexes

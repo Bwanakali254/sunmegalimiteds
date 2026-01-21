@@ -12,6 +12,12 @@ const ccreateToken = (id, role) => {
   });
 }
 
+const createRefreshToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d',
+  });
+}
+
 // Bootstrap super admin on server start
 const bootstrapSuperAdmin = async () => {
     try {
@@ -80,10 +86,12 @@ const loginUser = async (req, res) => {
         if (isMatch) {
             // Update lastLogin
             user.lastLogin = new Date();
+            const token = ccreateToken(user._id);
+            const refreshToken = createRefreshToken(user._id);
+            user.refreshToken = refreshToken;
             await user.save();
             
-            const token = ccreateToken(user._id);
-            res.json({success:true, token})
+            res.json({success:true, token, refreshToken})
         }
         else {
             res.json({success:false, message: "Invalid credentials"})
@@ -284,9 +292,11 @@ const googleAuth = async (req, res) => {
         if (user) {
             // User exists with this Google account - login
             user.lastLogin = new Date();
-            await user.save();
             const token = ccreateToken(user._id);
-            return res.json({ success: true, token });
+            const refreshToken = createRefreshToken(user._id);
+            user.refreshToken = refreshToken;
+            await user.save();
+            return res.json({ success: true, token, refreshToken });
         }
 
         // Check if user exists by email with different auth provider
@@ -328,7 +338,11 @@ const googleAuth = async (req, res) => {
         }
         
         const token = ccreateToken(user._id);
-        res.json({ success: true, token });
+        const refreshToken = createRefreshToken(user._id);
+        user.refreshToken = refreshToken;
+        await user.save();
+        
+        res.json({ success: true, token, refreshToken });
 
     } catch (error) {
         logError(error, 'googleAuth');
@@ -636,6 +650,9 @@ const verifyOTP = async (req, res) => {
         // Handle purpose-specific actions
         if (purpose === 'signup') {
             user.emailVerified = true;
+            const token = ccreateToken(user._id, user.role);
+            const refreshToken = createRefreshToken(user._id);
+            user.refreshToken = refreshToken;
             await user.save();
             
             // Send welcome email after verification
@@ -647,11 +664,11 @@ const verifyOTP = async (req, res) => {
                 logError(emailError, 'verifyOTP-welcomeEmail');
             }
             
-            const token = ccreateToken(user._id, user.role);
             return res.json({
                 success: true,
                 message: "Email verified successfully",
-                token
+                token,
+                refreshToken
             });
         } else if (purpose === 'verification') {
             user.emailVerified = true;
@@ -668,16 +685,19 @@ const verifyOTP = async (req, res) => {
             // Admin login verification
             user.otpVerified = true;
             user.lastLogin = new Date();
+            const token = ccreateToken(user._id, user.role);
+            const refreshToken = createRefreshToken(user._id);
+            user.refreshToken = refreshToken;
             await user.save();
             
             console.log("✅ Admin OTP verified successfully, issuing token");
             console.log("User role:", user.role);
             
-            const token = ccreateToken(user._id, user.role);
             return res.json({
                 success: true,
                 message: "Admin login verified successfully",
                 token,
+                refreshToken,
                 role: user.role
             });
         } else if (purpose === 'email_change') {
@@ -1160,4 +1180,32 @@ const requestAccountDeletion = async (req, res) => {
     }
 };
 
-export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion };
+// Refresh JWT token
+const refreshAccessToken = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        
+        if (!refreshToken) {
+            return res.status(401).json({ success: false, message: "Refresh token required" });
+        }
+        
+        // Verify refresh token
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+        
+        // Find user and verify refresh token matches
+        const user = await userModel.findById(decoded.id);
+        if (!user || user.refreshToken !== refreshToken) {
+            return res.status(401).json({ success: false, message: "Invalid refresh token" });
+        }
+        
+        // Generate new access token
+        const newToken = ccreateToken(user._id, user.role);
+        
+        res.json({ success: true, token: newToken });
+    } catch (error) {
+        logError(error, 'refreshAccessToken');
+        res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+    }
+};
+
+export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion, refreshAccessToken };
