@@ -131,4 +131,4 @@ app.use((req, res) => {
 });
 
 // Listen
-app.listen(port, () => logInfo(`Server is running on port: ${port}`, 'server'));
+app.listen(port, '0.0.0.0', () => logInfo(`Server is running on port: ${port}`, 'server'));
