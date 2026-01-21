@@ -79,7 +79,7 @@ export const validateSendOTP = [
 export const validateVerifyOTP = [
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     body('otpCode').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
-    body('purpose').isIn(['signup', 'password_change', 'email_change', 'verification']).withMessage('Invalid OTP purpose')
+    body('purpose').isIn(['signup', 'password_change', 'email_change', 'verification', 'account_delete']).withMessage('Invalid OTP purpose')
 ];
 
 // Validation for quote request
@@ -90,6 +90,28 @@ export const validateQuote = [
     body('serviceType').isIn(['Solar Panel Installation', 'System Design & Consultation', 'Battery & Energy Storage Solutions', 'Maintenance & Cleaning Services', 'Monitoring & O&M Plans', 'General Inquiry', 'Residential', 'Commercial', 'Industrial', 'Consultation']).withMessage('Invalid service type'),
     body('location').trim().notEmpty().withMessage('Location is required').isLength({ min: 3, max: 200 }).withMessage('Location must be between 3 and 200 characters'),
     body('message').optional().trim().isLength({ max: 1000 }).withMessage('Message must be less than 1000 characters')
+];
+
+// Validation for password reset request
+export const validatePasswordResetRequest = [
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required')
+];
+
+// Validation for password reset
+export const validatePasswordReset = [
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('otpCode').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
+    body('newPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+];
+
+// Validation for email change request
+export const validateEmailChangeRequest = [
+    body('newEmail').isEmail().normalizeEmail().withMessage('Valid email is required')
+];
+
+// Validation for account deletion request
+export const validateAccountDeletionRequest = [
+    body('password').notEmpty().withMessage('Password is required')
 ];
 
 // Middleware to handle validation errors

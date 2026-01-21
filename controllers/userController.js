@@ -169,10 +169,16 @@ const registerUser = async (req, res) => {
 // Route for Admin login
 const adminLogin = async (req, res) => {
    try {
-         const { email, password } = req.body;
+        let { email, password } = req.body;
+        
+        // ===== ADMIN OTP BUG FIX: Normalize email =====
+        email = String(email).trim().toLowerCase();
+        console.log("=== ADMIN LOGIN REQUEST ===");
+        console.log("Normalized email:", email);
+        console.log("==========================");
 
-         // Find user by email
-         const user = await userModel.findOne({ email });
+        // Find user by email
+        const user = await userModel.findOne({ email });
          
          if (!user) {
              return res.json({ success: false, message: "Invalid credentials" });
@@ -207,17 +213,33 @@ const adminLogin = async (req, res) => {
          const otpCode = generateOTP();
          const otpExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour (temporary for testing)
 
-         user.otpCode = otpCode;
-         user.otpExpires = otpExpires;
-         user.otpAttempts = 0;
-         user.otpPurpose = 'admin_login';
-         user.otpVerified = false;
-         
-         console.log("Admin Login - Setting OTP Purpose:", user.otpPurpose);
-         console.log("Admin Login - OTP Expires at:", otpExpires);
-         console.log("Admin Login - Current time:", new Date());
-         await user.save();
-         console.log("Admin Login - User saved with OTP Purpose:", user.otpPurpose);
+        user.otpCode = otpCode;
+        user.otpExpires = otpExpires;
+        user.otpAttempts = 0;
+        user.otpPurpose = 'admin_login';
+        user.otpVerified = false;
+        
+        // ===== ADMIN OTP BUG FIX: Enhanced Admin Login Debug =====
+        console.log("=== Admin Login - Before Save ===");
+        console.log("Setting OTP Purpose:", user.otpPurpose);
+        console.log("OTP Purpose length:", user.otpPurpose.length);
+        console.log("OTP Purpose char codes:", Array.from(user.otpPurpose).map(c => c.charCodeAt(0)));
+        console.log("OTP Code:", otpCode);
+        console.log("OTP Expires at:", otpExpires);
+        console.log("Current time:", new Date());
+        console.log("================================");
+        
+        await user.save();
+        
+        // Reload user from DB to verify save
+        const verifyUser = await userModel.findById(user._id);
+        console.log("=== Admin Login - After Save (DB Verification) ===");
+        console.log("User saved with OTP Purpose:", verifyUser.otpPurpose);
+        console.log("DB OTP Purpose length:", verifyUser.otpPurpose?.length);
+        console.log("DB OTP Purpose char codes:", verifyUser.otpPurpose ? Array.from(verifyUser.otpPurpose).map(c => c.charCodeAt(0)) : 'N/A');
+        console.log("DB OTP Code:", verifyUser.otpCode);
+        console.log("DB OTP Expires:", verifyUser.otpExpires);
+        console.log("==================================================");
 
          // Send OTP email
          try {
@@ -490,15 +512,43 @@ const verifyOTP = async (req, res) => {
     try {
         let { email, otpCode, purpose } = req.body;
 
+        // ===== ADMIN OTP BUG FIX: Enhanced Debug Logging =====
+        console.log("=== RAW REQUEST BODY ===");
+        console.log("Raw req.body:", JSON.stringify(req.body));
+        console.log("Raw email:", email, "| length:", email?.length);
+        console.log("Raw otpCode:", otpCode, "| length:", String(otpCode).length);
+        console.log("Raw purpose:", purpose, "| length:", purpose?.length);
+        console.log("Purpose char codes:", purpose ? Array.from(purpose).map(c => c.charCodeAt(0)) : 'N/A');
+        console.log("========================");
+
         if (!email || !otpCode || !purpose) {
             return res.json({ success: false, message: "Email, OTP code, and purpose are required" });
         }
 
-        // Ensure otpCode is string and normalize purpose to lowercase
-        otpCode = String(otpCode);
-        purpose = purpose.toLowerCase();
+        // Ensure otpCode is string and normalize purpose to lowercase + trim
+        // Also normalize email to handle any whitespace issues
+        email = String(email).trim().toLowerCase();
+        otpCode = String(otpCode).trim();
+        purpose = String(purpose).trim().toLowerCase();
+
+        console.log("=== AFTER NORMALIZATION ===");
+        console.log("Normalized email:", email, "| length:", email.length);
+        console.log("Normalized otpCode:", otpCode, "| length:", otpCode.length);
+        console.log("Normalized purpose:", purpose, "| length:", purpose.length);
+        console.log("Purpose char codes:", Array.from(purpose).map(c => c.charCodeAt(0)));
+        console.log("===========================");
 
         const user = await userModel.findOne({ email });
+        
+        // ===== ADMIN OTP BUG FIX: User Lookup Verification =====
+        if (user) {
+            console.log("=== USER FOUND ===");
+            console.log("User ID:", user._id);
+            console.log("User email:", user.email);
+            console.log("User role:", user.role);
+            console.log("User has OTP data:", !!user.otpCode);
+            console.log("==================");
+        }
         if (!user) {
             return res.json({ success: false, message: "Verification failed" }); // Generic message for security
         }
@@ -548,20 +598,34 @@ const verifyOTP = async (req, res) => {
         });
         console.log("=============================================");
 
-        // Check purpose matches (normalize stored purpose to lowercase)
-        const storedPurpose = (user.otpPurpose || '').toLowerCase();
+        // Check purpose matches (normalize stored purpose to lowercase + trim)
+        const storedPurpose = String(user.otpPurpose || '').trim().toLowerCase();
         
-        // Debug logs for admin login troubleshooting
-        console.log("=== OTP Purpose Debug ===");
-        console.log("Stored purpose:", user.otpPurpose);
+        // ===== ADMIN OTP BUG FIX: Enhanced Purpose Comparison Debug =====
+        console.log("=== OTP Purpose Comparison Debug ===");
+        console.log("Stored purpose (raw):", user.otpPurpose);
+        console.log("Stored purpose (raw) length:", user.otpPurpose?.length);
+        console.log("Stored purpose (raw) char codes:", user.otpPurpose ? Array.from(user.otpPurpose).map(c => c.charCodeAt(0)) : 'N/A');
+        console.log("---");
         console.log("Stored purpose (normalized):", storedPurpose);
+        console.log("Stored purpose (normalized) length:", storedPurpose.length);
+        console.log("Stored purpose (normalized) char codes:", Array.from(storedPurpose).map(c => c.charCodeAt(0)));
+        console.log("---");
         console.log("Received purpose:", purpose);
-        console.log("Match:", storedPurpose === purpose);
-        console.log("========================");
+        console.log("Received purpose length:", purpose.length);
+        console.log("Received purpose char codes:", Array.from(purpose).map(c => c.charCodeAt(0)));
+        console.log("---");
+        console.log("Comparison: '" + storedPurpose + "' === '" + purpose + "'");
+        console.log("Match result:", storedPurpose === purpose);
+        console.log("String equality check:", storedPurpose.valueOf() === purpose.valueOf());
+        console.log("=====================================");
         
         if (storedPurpose !== purpose) {
+            console.log("❌ PURPOSE MISMATCH - Returning error");
             return res.json({ success: false, message: "Invalid verification code purpose." });
         }
+        
+        console.log("✅ PURPOSE MATCHED - Proceeding with verification");
 
         // OTP is valid - clear OTP fields
         user.otpCode = null;
@@ -597,10 +661,17 @@ const verifyOTP = async (req, res) => {
                 message: "Email verified successfully"
             });
         } else if (purpose === 'admin_login') {
+            // ===== ADMIN OTP BUG FIX: Admin Login Branch Entered =====
+            console.log("🎯 ADMIN LOGIN BRANCH ENTERED");
+            console.log("Setting otpVerified to true for user:", user.email);
+            
             // Admin login verification
             user.otpVerified = true;
             user.lastLogin = new Date();
             await user.save();
+            
+            console.log("✅ Admin OTP verified successfully, issuing token");
+            console.log("User role:", user.role);
             
             const token = ccreateToken(user._id, user.role);
             return res.json({
@@ -609,8 +680,45 @@ const verifyOTP = async (req, res) => {
                 token,
                 role: user.role
             });
+        } else if (purpose === 'email_change') {
+            // Email change verification
+            if (!user.pendingEmail) {
+                return res.json({ success: false, message: "No pending email change found" });
+            }
+            
+            // Update email to pending email
+            user.email = user.pendingEmail;
+            user.pendingEmail = null;
+            user.emailVerified = true;
+            await user.save();
+            
+            return res.json({
+                success: true,
+                message: "Email updated successfully"
+            });
+        } else if (purpose === 'account_delete') {
+            // Account deletion verification
+            const userEmail = user.email;
+            const userName = user.name;
+            
+            // Permanently delete user account
+            await userModel.findByIdAndDelete(user._id);
+            
+            // Send account deletion confirmation email (fire-and-forget)
+            try {
+                const { sendAccountDeletionConfirmationEmail } = await import('../services/emailService.js');
+                sendAccountDeletionConfirmationEmail({ to: userEmail, name: userName })
+                    .catch(err => logError(err, 'verifyOTP-accountDeletionEmail'));
+            } catch (emailError) {
+                logError(emailError, 'verifyOTP-accountDeletionEmail');
+            }
+            
+            return res.json({
+                success: true,
+                message: "Account deleted successfully"
+            });
         } else {
-            // For password_change, email_change - just verify OTP, don't change anything yet
+            // For password_change - just verify OTP, don't change anything yet
             await user.save();
             return res.json({
                 success: true,
@@ -763,4 +871,266 @@ const resetAdminPassword = async (req, res) => {
     }
 }
 
-export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, inviteAdmin, resetAdminPassword };
+// Request password reset - sends OTP with purpose "password_change"
+const requestPasswordReset = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.json({ success: false, message: "Email is required" });
+        }
+
+        // Find user
+        const user = await userModel.findOne({ email });
+        if (!user) {
+            // Generic message for security - don't reveal if email exists
+            return res.json({ success: false, message: "If this email exists, you will receive a password reset code." });
+        }
+
+        // Only allow regular users (not admin/super_admin)
+        if (user.role !== 'user') {
+            return res.json({ success: false, message: "Invalid request" });
+        }
+
+        // Generate OTP
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Store OTP
+        user.otpCode = otpCode;
+        user.otpExpires = otpExpires;
+        user.otpAttempts = 0;
+        user.otpPurpose = 'password_change';
+        await user.save();
+
+        // Send OTP email
+        try {
+            const { sendOTPEmail } = await import('../services/emailService.js');
+            await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'password_change' });
+        } catch (emailError) {
+            logError(emailError, 'requestPasswordReset-email');
+            return res.json({
+                success: false,
+                message: "Failed to send password reset code. Please try again."
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Password reset code sent to your email",
+            expiresIn: 600 // 10 minutes in seconds
+        });
+    } catch (error) {
+        logError(error, 'requestPasswordReset');
+        res.json({ success: false, message: "Failed to process password reset request" });
+    }
+};
+
+// Reset password after OTP verification
+const resetPassword = async (req, res) => {
+    try {
+        const { email, otpCode, newPassword } = req.body;
+
+        if (!email || !otpCode || !newPassword) {
+            return res.json({ success: false, message: "All fields are required" });
+        }
+
+        // Validate password strength
+        if (newPassword.length < 8) {
+            return res.json({ success: false, message: "Password must be at least 8 characters long" });
+        }
+
+        // Find user
+        const user = await userModel.findOne({ email });
+        if (!user) {
+            return res.json({ success: false, message: "Invalid request" });
+        }
+
+        // Only allow regular users
+        if (user.role !== 'user') {
+            return res.json({ success: false, message: "Invalid request" });
+        }
+
+        // Verify OTP
+        if (!user.otpCode || String(user.otpCode) !== String(otpCode)) {
+            return res.json({ success: false, message: "Invalid verification code" });
+        }
+
+        // Check expiry
+        if (user.otpExpires.getTime() < Date.now()) {
+            // Clear expired OTP
+            user.otpCode = undefined;
+            user.otpExpires = undefined;
+            user.otpPurpose = undefined;
+            user.otpAttempts = 0;
+            await user.save();
+            return res.json({ success: false, message: "Verification code has expired. Please request a new one." });
+        }
+
+        // Check purpose
+        if (user.otpPurpose !== 'password_change') {
+            return res.json({ success: false, message: "Invalid verification code purpose" });
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update password and clear OTP fields
+        user.password = hashedPassword;
+        user.otpCode = undefined;
+        user.otpExpires = undefined;
+        user.otpPurpose = undefined;
+        user.otpAttempts = 0;
+        user.otpVerified = false;
+        await user.save();
+
+        res.json({
+            success: true,
+            message: "Password reset successfully. You can now login with your new password."
+        });
+    } catch (error) {
+        logError(error, 'resetPassword');
+        res.json({ success: false, message: "Failed to reset password" });
+    }
+};
+
+// Request email change - sends OTP to new email
+const requestEmailChange = async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const { newEmail } = req.body;
+
+        if (!newEmail) {
+            return res.json({ success: false, message: "New email is required" });
+        }
+
+        // Validate email format
+        if (!validator.isEmail(newEmail)) {
+            return res.json({ success: false, message: "Please enter a valid email" });
+        }
+
+        // Get current user
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        // Only allow regular users (not admin/super_admin)
+        if (user.role !== 'user') {
+            return res.json({ success: false, message: "Invalid request" });
+        }
+
+        // Check if new email is same as current
+        if (user.email.toLowerCase() === newEmail.toLowerCase()) {
+            return res.json({ success: false, message: "New email is the same as your current email" });
+        }
+
+        // Check if new email is already in use
+        const existingUser = await userModel.findOne({ email: newEmail.toLowerCase() });
+        if (existingUser) {
+            return res.json({ success: false, message: "This email is already registered" });
+        }
+
+        // Generate OTP
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Store pending email and OTP
+        user.pendingEmail = newEmail.toLowerCase();
+        user.otpCode = otpCode;
+        user.otpExpires = otpExpires;
+        user.otpAttempts = 0;
+        user.otpPurpose = 'email_change';
+        await user.save();
+
+        // Send OTP email to NEW email address
+        try {
+            const { sendOTPEmail } = await import('../services/emailService.js');
+            await sendOTPEmail({ email: newEmail, name: user.name, otpCode, purpose: 'email_change' });
+        } catch (emailError) {
+            logError(emailError, 'requestEmailChange-email');
+            return res.json({
+                success: false,
+                message: "Failed to send verification code. Please try again."
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Verification code sent to your new email address",
+            expiresIn: 600 // 10 minutes in seconds
+        });
+    } catch (error) {
+        logError(error, 'requestEmailChange');
+        res.json({ success: false, message: "Failed to process email change request" });
+    }
+};
+
+// Request account deletion - sends OTP for confirmation
+const requestAccountDeletion = async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const { password } = req.body;
+
+        if (!password) {
+            return res.json({ success: false, message: "Password is required" });
+        }
+
+        // Get current user
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        // Only allow regular users (not admin/super_admin)
+        if (user.role !== 'user') {
+            return res.json({ success: false, message: "Invalid request" });
+        }
+
+        // Check if user uses email authentication
+        if (user.authProvider !== 'email' || !user.password) {
+            return res.json({ success: false, message: "Google accounts cannot be deleted through this method. Please contact support." });
+        }
+
+        // Verify password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.json({ success: false, message: "Incorrect password" });
+        }
+
+        // Generate OTP
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Store OTP
+        user.otpCode = otpCode;
+        user.otpExpires = otpExpires;
+        user.otpAttempts = 0;
+        user.otpPurpose = 'account_delete';
+        await user.save();
+
+        // Send OTP email
+        try {
+            const { sendOTPEmail } = await import('../services/emailService.js');
+            await sendOTPEmail({ email: user.email, name: user.name, otpCode, purpose: 'account_delete' });
+        } catch (emailError) {
+            logError(emailError, 'requestAccountDeletion-email');
+            return res.json({
+                success: false,
+                message: "Failed to send verification code. Please try again."
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Verification code sent to your email. This action is permanent and cannot be undone.",
+            expiresIn: 600 // 10 minutes in seconds
+        });
+    } catch (error) {
+        logError(error, 'requestAccountDeletion');
+        res.json({ success: false, message: "Failed to process account deletion request" });
+    }
+};
+
+export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion };

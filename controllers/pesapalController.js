@@ -1,6 +1,9 @@
 import { getPesapalToken } from "../config/pesapal.js";
 import { registerPesapalIPN, getPesapalTransactionStatus } from "../config/pesapal.js";
 import Order from "../models/orderModel.js";
+import userModel from "../models/userModel.js";
+import { sendPaymentConfirmationEmail, sendAdminPaymentReceivedEmail } from "../services/emailService.js";
+import { logError } from "../utils/logger.js";
 
 
 
@@ -28,6 +31,27 @@ export const handlePesapalIPN = async (req, res) => {
     if (paymentStatus === "COMPLETED") {
       order.status = "Paid";
       order.payment = true;
+      
+      // Send payment confirmation emails (fire-and-forget)
+      try {
+        const user = await userModel.findById(order.userId);
+        
+        // Send confirmation email to customer
+        sendPaymentConfirmationEmail({
+          to: order.address.email,
+          order,
+          user,
+        }).catch(err => logError(err, 'handlePesapalIPN-customerEmail'));
+        
+        // Send notification email to admin
+        sendAdminPaymentReceivedEmail({
+          order,
+          user,
+        }).catch(err => logError(err, 'handlePesapalIPN-adminEmail'));
+      } catch (emailError) {
+        logError(emailError, 'handlePesapalIPN-emails');
+        // Don't block IPN processing if emails fail
+      }
     } else if (paymentStatus === "FAILED") {
       order.status = "Payment Failed";
       order.payment = false;

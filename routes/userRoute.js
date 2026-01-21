@@ -1,7 +1,7 @@
 import express from 'express';
-import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, inviteAdmin, resetAdminPassword } from '../controllers/userController.js';
+import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion } from '../controllers/userController.js';
 import { authRateLimit, otpSendRateLimit, otpVerifyRateLimit } from '../middleware/rateLimit.js';
-import { validateRegister, validateLogin, validateAdminLogin, validateGoogleAuth, validateProfileUpdate, validateSendOTP, validateVerifyOTP, handleValidationErrors } from '../middleware/validation.js';
+import { validateRegister, validateLogin, validateAdminLogin, validateGoogleAuth, validateProfileUpdate, validateSendOTP, validateVerifyOTP, validatePasswordResetRequest, validatePasswordReset, validateEmailChangeRequest, validateAccountDeletionRequest, handleValidationErrors } from '../middleware/validation.js';
 import authUser from '../middleware/auth.js';
 import optionalAuth from '../middleware/optionalAuth.js';
 import adminAuth from '../middleware/adminAuth.js';
@@ -45,6 +45,16 @@ userRouter.put('/profile', authUser, validateProfileUpdate, handleValidationErro
 // OTP routes (optionalAuth allows logged-in users to use token, but also works without token for signup)
 userRouter.post('/send-otp', optionalAuth, otpSendRateLimit, validateSendOTP, handleValidationErrors, sendOTP)
 userRouter.post('/verify-otp', otpVerifyRateLimit, validateVerifyOTP, handleValidationErrors, verifyOTP)
+
+// Password reset routes (customer)
+userRouter.post('/request-password-reset', authRateLimit, validatePasswordResetRequest, handleValidationErrors, requestPasswordReset)
+userRouter.post('/reset-password', authRateLimit, validatePasswordReset, handleValidationErrors, resetPassword)
+
+// Email change routes (customer)
+userRouter.post('/request-email-change', authUser, authRateLimit, validateEmailChangeRequest, handleValidationErrors, requestEmailChange)
+
+// Account deletion routes (customer)
+userRouter.post('/request-account-delete', authUser, authRateLimit, validateAccountDeletionRequest, handleValidationErrors, requestAccountDeletion)
 
 // Admin management routes
 userRouter.post('/admin/invite', superAdminAuth, inviteAdmin)

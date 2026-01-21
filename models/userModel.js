@@ -25,12 +25,13 @@ const userSchema = new mongoose.Schema({
     emailVerified: { type: Boolean, default: true }, // Default true for backward compatibility
     emailVerificationToken: { type: String, required: false },
     emailVerificationExpires: { type: Date, required: false },
+    pendingEmail: { type: String, required: false }, // For email change verification
     
     // OTP fields
     otpCode: { type: String, required: false },
     otpExpires: { type: Date, required: false },
     otpAttempts: { type: Number, default: 0 },
-    otpPurpose: { type: String, enum: ['signup', 'password_change', 'email_change', 'verification', 'admin_login'], required: false },
+    otpPurpose: { type: String, enum: ['signup', 'password_change', 'email_change', 'verification', 'admin_login', 'account_delete'], required: false },
     
     // Preferences
     currency: { type: String, enum: ['KES', 'USD', 'EUR'], default: 'KES' },
