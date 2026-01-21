@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion } from '../controllers/userController.js';
+import { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion } from '../controllers/userController.js';
 import { authRateLimit, otpSendRateLimit, otpVerifyRateLimit } from '../middleware/rateLimit.js';
 import { validateRegister, validateLogin, validateAdminLogin, validateGoogleAuth, validateProfileUpdate, validateSendOTP, validateVerifyOTP, validatePasswordResetRequest, validatePasswordReset, validateEmailChangeRequest, validateAccountDeletionRequest, handleValidationErrors } from '../middleware/validation.js';
 import authUser from '../middleware/auth.js';
@@ -57,6 +57,7 @@ userRouter.post('/request-email-change', authUser, authRateLimit, validateEmailC
 userRouter.post('/request-account-delete', authUser, authRateLimit, validateAccountDeletionRequest, handleValidationErrors, requestAccountDeletion)
 
 // Admin management routes
+userRouter.get('/admin/profile', adminAuth, getAdminProfile)
 userRouter.post('/admin/invite', superAdminAuth, inviteAdmin)
 userRouter.post('/admin/reset-password', resetAdminPassword)
 

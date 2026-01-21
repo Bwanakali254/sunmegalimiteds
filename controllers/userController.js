@@ -731,6 +731,33 @@ const verifyOTP = async (req, res) => {
     }
 }
 
+// Get admin profile
+const getAdminProfile = async (req, res) => {
+    try {
+        const userId = req.userId; // Set by adminAuth middleware
+        
+        const user = await userModel.findById(userId).select('name email role createdAt lastLogin');
+        
+        if (!user) {
+            return res.json({ success: false, message: "Admin not found" });
+        }
+        
+        res.json({
+            success: true,
+            profile: {
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                createdAt: user.createdAt,
+                lastLogin: user.lastLogin
+            }
+        });
+    } catch (error) {
+        logError(error, 'getAdminProfile');
+        res.json({ success: false, message: "Failed to fetch admin profile" });
+    }
+};
+
 // Invite admin (super_admin only)
 const inviteAdmin = async (req, res) => {
     try {
@@ -1133,4 +1160,4 @@ const requestAccountDeletion = async (req, res) => {
     }
 };
 
-export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion };
+export { loginUser, registerUser, adminLogin, googleAuth, getUserProfile, updateUserProfile, sendOTP, verifyOTP, bootstrapSuperAdmin, getAdminProfile, inviteAdmin, resetAdminPassword, requestPasswordReset, resetPassword, requestEmailChange, requestAccountDeletion };
