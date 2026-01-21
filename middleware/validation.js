@@ -79,7 +79,7 @@ export const validateSendOTP = [
 export const validateVerifyOTP = [
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     body('otpCode').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
-    body('purpose').isIn(['signup', 'password_change', 'email_change', 'verification', 'account_delete']).withMessage('Invalid OTP purpose')
+    body('purpose').isIn(['signup', 'password_change', 'email_change', 'verification', 'admin_login', 'account_delete']).withMessage('Invalid OTP purpose')
 ];
 
 // Validation for quote request
