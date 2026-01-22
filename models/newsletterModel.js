@@ -13,7 +13,6 @@ const newsletterSchema = new mongoose.Schema({
 }, { minimize: false });
 
 // Indexes
-newsletterSchema.index({ email: 1 }, { unique: true });
 newsletterSchema.index({ status: 1 });
 
 const newsletterModel = mongoose.models.newsletter || mongoose.model('newsletter', newsletterSchema);

@@ -20,6 +20,14 @@ import { bootstrapSuperAdmin } from './controllers/userController.js';
 const app = express();
 const port = process.env.PORT || 5000;
 
+// Validate required environment variables
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'FRONTEND_URL', 'ADMIN_URL'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingEnvVars.length > 0) {
+    console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    process.exit(1);
+}
+
 // Trust proxy configuration (must be set before middleware that uses IP)
 if (process.env.TRUST_PROXY === 'true') {
     app.set('trust proxy', 1);
@@ -36,12 +44,7 @@ const initializeServer = async () => {
 // Define allowed origins for CORS (frontend and admin)
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  process.env.ADMIN_URL,
-  "https://sunmegalimited.vercel.app",
-  "https://sunmegalimitedadmin.vercel.app",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:8080"
+  process.env.ADMIN_URL
 ].filter(Boolean);
 
 app.use(helmet({
