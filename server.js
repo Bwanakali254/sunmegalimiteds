@@ -11,7 +11,7 @@ import orderRouter from './routes/orderRoute.js';
 import contactRouter from './routes/contactRoute.js';
 import newsletterRouter from './routes/newsletterRoute.js';
 import quoteRouter from './routes/quoteRoute.js';
-import { logInfo } from './utils/logger.js';
+import { logInfo, logError } from './utils/logger.js';
 import pesapalRouter from "./routes/pesapalRoute.js";
 import { bootstrapSuperAdmin } from './controllers/userController.js';
 
@@ -31,8 +31,6 @@ const initializeServer = async () => {
     await bootstrapSuperAdmin();
     connectCloudinary();
 };
-
-initializeServer();
 
 // Middlewares
 // Define allowed origins for CORS (frontend and admin)
@@ -130,5 +128,12 @@ app.use((req, res) => {
     });
 });
 
-// Listen
-app.listen(port, '0.0.0.0', () => logInfo(`Server is running on port: ${port}`, 'server'));
+// Start server after initialization
+initializeServer()
+    .then(() => {
+        app.listen(port, '0.0.0.0', () => logInfo(`Server is running on port: ${port}`, 'server'));
+    })
+    .catch((error) => {
+        logError(error, 'server-startup');
+        process.exit(1);
+    });
