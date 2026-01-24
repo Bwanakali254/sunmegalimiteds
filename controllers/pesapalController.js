@@ -1,147 +1,143 @@
-import { getPesapalToken } from "../config/pesapal.js";
-import { registerPesapalIPN, getPesapalTransactionStatus } from "../config/pesapal.js";
+import { getPesapalTransactionStatus } from "../config/pesapal.js";
 import Order from "../models/orderModel.js";
 import userModel from "../models/userModel.js";
-import { sendPaymentConfirmationEmail, sendAdminPaymentReceivedEmail, sendPaymentFailedEmail, sendAdminPaymentFailedEmail } from "../services/emailService.js";
+import {
+  sendPaymentConfirmationEmail,
+  sendAdminPaymentReceivedEmail,
+  sendPaymentFailedEmail,
+  sendAdminPaymentFailedEmail,
+} from "../services/emailService.js";
 import { logError } from "../utils/logger.js";
 
-
-
+// ---------------------------
+// IPN Handler (Pesapal -> Backend)
+// ---------------------------
 export const handlePesapalIPN = async (req, res) => {
   try {
-    const { OrderTrackingId } = req.query;
+    // Pesapal usually sends these in query params (GET IPN)
+    const OrderTrackingId = req.query.OrderTrackingId || req.query.orderTrackingId;
+    const OrderMerchantReference =
+      req.query.OrderMerchantReference || req.query.orderMerchantReference;
 
     if (!OrderTrackingId) {
-      logError(new Error('IPN received without OrderTrackingId'), 'handlePesapalIPN');
-      return res.status(200).send("OK");
-    }
-    
-    // Validate OrderTrackingId format (basic validation)
-    if (typeof OrderTrackingId !== 'string' || OrderTrackingId.length < 10) {
-      logError(new Error(`Invalid OrderTrackingId format: ${OrderTrackingId}`), 'handlePesapalIPN');
+      logError(new Error("IPN received without OrderTrackingId"), "handlePesapalIPN");
       return res.status(200).send("OK");
     }
 
-    // Verify transaction status directly from Pesapal (security measure)
-    const statusData = await getPesapalTransactionStatus(OrderTrackingId);
-    
-    // Validate response from Pesapal
-    if (!statusData || (!statusData.payment_status_description && !statusData?.data?.payment_status_description)) {
-      logError(new Error(`Invalid Pesapal response for OrderTrackingId: ${OrderTrackingId}`), 'handlePesapalIPN');
+    // Basic validation
+    if (typeof OrderTrackingId !== "string" || OrderTrackingId.length < 10) {
+      logError(
+        new Error(`Invalid OrderTrackingId format: ${OrderTrackingId}`),
+        "handlePesapalIPN"
+      );
       return res.status(200).send("OK");
     }
+
+    // Verify transaction status directly from Pesapal
+    const statusData = await getPesapalTransactionStatus(OrderTrackingId);
 
     const paymentStatus =
       statusData?.payment_status_description ||
       statusData?.data?.payment_status_description;
 
-      const order = await Order.findOne({
-        $or: [
-          { orderTrackingId: OrderTrackingId },
-          { merchantReference: OrderTrackingId }
-        ]
-      });
-
-    if (!order) {
-      logError(new Error(`Order not found for OrderTrackingId: ${OrderTrackingId}`), 'handlePesapalIPN');
+    if (!paymentStatus) {
+      logError(
+        new Error(`Invalid Pesapal response for OrderTrackingId: ${OrderTrackingId}`),
+        "handlePesapalIPN"
+      );
       return res.status(200).send("OK");
     }
-    
-    // Log IPN processing
-    console.log(`IPN Processing: OrderTrackingId=${OrderTrackingId}, Status=${paymentStatus}, OrderId=${order._id}`);
+
+    // ✅ FIX: Find order using tracking id OR merchant reference (correct param)
+    const order = await Order.findOne({
+      $or: [
+        { orderTrackingId: OrderTrackingId },
+        ...(OrderMerchantReference ? [{ merchantReference: OrderMerchantReference }] : []),
+      ],
+    });
+
+    if (!order) {
+      logError(
+        new Error(
+          `Order not found. OrderTrackingId=${OrderTrackingId}, OrderMerchantReference=${OrderMerchantReference}`
+        ),
+        "handlePesapalIPN"
+      );
+      return res.status(200).send("OK");
+    }
+
+    console.log(
+      `IPN Processing: OrderTrackingId=${OrderTrackingId}, MerchantRef=${OrderMerchantReference}, Status=${paymentStatus}, OrderId=${order._id}`
+    );
 
     if (paymentStatus === "COMPLETED") {
       order.status = "Paid";
       order.payment = true;
-      
-      // Send payment confirmation emails (fire-and-forget)
+
+      // Emails (fire-and-forget)
       try {
         const user = await userModel.findById(order.userId);
-        
-        // Send confirmation email to customer
+
         sendPaymentConfirmationEmail({
           to: order.address.email,
           order,
           user,
-        }).catch(err => logError(err, 'handlePesapalIPN-customerEmail'));
-        
-        // Send notification email to admin
+        }).catch((err) => logError(err, "handlePesapalIPN-customerEmail"));
+
         sendAdminPaymentReceivedEmail({
           order,
           user,
-        }).catch(err => logError(err, 'handlePesapalIPN-adminEmail'));
+        }).catch((err) => logError(err, "handlePesapalIPN-adminEmail"));
       } catch (emailError) {
-        logError(emailError, 'handlePesapalIPN-emails');
-        // Don't block IPN processing if emails fail
+        logError(emailError, "handlePesapalIPN-emails");
       }
-    } else if (paymentStatus === "FAILED") {
+    } else if (
+      paymentStatus === "FAILED" ||
+      paymentStatus === "INVALID" ||
+      paymentStatus === "REVERSED"
+    ) {
       order.status = "Payment Failed";
       order.payment = false;
-      
-      // Send payment failed emails (fire-and-forget)
+
+      // Emails (fire-and-forget)
       try {
         const user = await userModel.findById(order.userId);
-        
-        // Send failed payment email to customer
+
         sendPaymentFailedEmail({
           to: order.address.email,
           order,
           user,
-        }).catch(err => logError(err, 'handlePesapalIPN-customerFailedEmail'));
-        
-        // Send failed payment notification to admin
+        }).catch((err) => logError(err, "handlePesapalIPN-customerFailedEmail"));
+
         sendAdminPaymentFailedEmail({
           order,
           user,
-        }).catch(err => logError(err, 'handlePesapalIPN-adminFailedEmail'));
+        }).catch((err) => logError(err, "handlePesapalIPN-adminFailedEmail"));
       } catch (emailError) {
-        logError(emailError, 'handlePesapalIPN-failedEmails');
-        // Don't block IPN processing if emails fail
+        logError(emailError, "handlePesapalIPN-failedEmails");
       }
     } else {
-      order.status = "Pending Payment";
-      order.payment = false;
+      // Pending-like statuses
+      if (!order.payment) {
+        order.status = "Pending Payment";
+      }
     }
 
     await order.save();
-    console.log("Order updated:", order._id, order.status);
+    console.log("Order updated via IPN:", order._id.toString(), order.status, order.payment);
 
-    res.status(200).send("OK");
+    return res.status(200).send("OK");
   } catch (error) {
     console.error("IPN error:", error.message);
-    res.status(200).send("OK");
+    return res.status(200).send("OK");
   }
 };
 
+// ---------------------------
+// Simple status check (does NOT update DB)
+// ---------------------------
 export const checkPesapalStatus = async (req, res) => {
   try {
-    const { orderTrackingId } = req.query;
-
-    if (!orderTrackingId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing orderTrackingId" });
-    }
-
-    const statusData = await getPesapalTransactionStatus(orderTrackingId);
-
-    const paymentStatus =
-      statusData?.payment_status_description ||
-      statusData?.data?.payment_status_description;
-
-    res.json({
-      success: true,
-      status: paymentStatus,
-    });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
-
-
-export const verifyPesapalAndUpdateOrder = async (req, res) => {
-  try {
-    // Accept both cases (Pesapal uses OrderTrackingId)
     const orderTrackingId =
       req.query.orderTrackingId || req.query.OrderTrackingId;
 
@@ -151,7 +147,6 @@ export const verifyPesapalAndUpdateOrder = async (req, res) => {
         .json({ success: false, message: "Missing orderTrackingId" });
     }
 
-    // 1) Ask Pesapal for the real truth
     const statusData = await getPesapalTransactionStatus(orderTrackingId);
 
     const paymentStatus =
@@ -159,9 +154,46 @@ export const verifyPesapalAndUpdateOrder = async (req, res) => {
       statusData?.data?.payment_status_description ||
       "PENDING";
 
-    // 2) Update your DB based on truth (idempotent)
+    return res.json({
+      success: true,
+      status: paymentStatus,
+    });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ---------------------------
+// Verify + UPDATE DB (Callback Page should use THIS)
+// ---------------------------
+export const verifyPesapalAndUpdateOrder = async (req, res) => {
+  // ✅ Stop caching (fixes 304 issues)
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+
+  try {
+    const orderTrackingId =
+      req.query.orderTrackingId || req.query.OrderTrackingId;
+
+    if (!orderTrackingId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing orderTrackingId" });
+    }
+
+    // Ask Pesapal for truth
+    const statusData = await getPesapalTransactionStatus(orderTrackingId);
+
+    const paymentStatus =
+      statusData?.payment_status_description ||
+      statusData?.data?.payment_status_description ||
+      "PENDING";
+
+    // Update DB based on truth (idempotent)
+    let updateResult;
+
     if (paymentStatus === "COMPLETED") {
-      await Order.updateOne(
+      updateResult = await Order.updateOne(
         { orderTrackingId },
         { $set: { payment: true, status: "Paid" } }
       );
@@ -170,19 +202,20 @@ export const verifyPesapalAndUpdateOrder = async (req, res) => {
       paymentStatus === "INVALID" ||
       paymentStatus === "REVERSED"
     ) {
-      await Order.updateOne(
+      updateResult = await Order.updateOne(
         { orderTrackingId },
         { $set: { payment: false, status: "Payment Failed" } }
       );
     } else {
-      // Pending: don’t overwrite Paid orders by mistake
-      await Order.updateOne(
+      updateResult = await Order.updateOne(
         { orderTrackingId, payment: { $ne: true } },
         { $set: { status: "Pending Payment" } }
       );
     }
 
-    // 3) Send response to frontend
+    // ✅ Debug log so we know if DB matched anything
+    console.log("VERIFY:", orderTrackingId, paymentStatus, "UPDATE:", updateResult);
+
     return res.json({ success: true, status: paymentStatus });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
