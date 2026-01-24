@@ -57,8 +57,8 @@ app.use(helmet({
             fontSrc: ["'self'", "data:", "https:"],
             connectSrc: [
                 "'self'",
-                process.env.FRONTEND_URL || 'https://sunmegalimited.vercel.app',
-                process.env.ADMIN_URL || 'https://sunmegalimitedadmin.vercel.app',
+                process.env.FRONTEND_URL || 'https://sunmega.co.ke', 'https://www.sunmega.co.ke',
+                process.env.ADMIN_URL || 'https://admin.sunmega.co.ke',
                 "https://accounts.google.com",
                 
             ],
