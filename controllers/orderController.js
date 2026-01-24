@@ -26,15 +26,18 @@ const placeOrder = async (req, res) => {
       return res.json({ success: false, message: "Invalid order data" });
     }
 
+    const merchantReference = `ORD-${Date.now()}`;
+
     const order = await orderModel.create({
       userId,
       items,
       address,
       amount,
+      merchantReference,            // ✅ ADD THIS LINE
       status: "Pending Payment",
-      payment: false,
-      paymentMethod: "Pesapal", // required by schema
-      date: new Date().toISOString(), // required by schema
+      payment: false,               // ✅ KEEP THIS
+      paymentMethod: "Pesapal",
+      date: new Date().toISOString(),
     });
 
     // Build Pesapal payload from this order

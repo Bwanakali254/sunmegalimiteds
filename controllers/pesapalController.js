@@ -35,7 +35,12 @@ export const handlePesapalIPN = async (req, res) => {
       statusData?.payment_status_description ||
       statusData?.data?.payment_status_description;
 
-    const order = await Order.findOne({ orderTrackingId: OrderTrackingId });
+      const order = await Order.findOne({
+        $or: [
+          { orderTrackingId: OrderTrackingId },
+          { merchantReference: OrderTrackingId }
+        ]
+      });
 
     if (!order) {
       logError(new Error(`Order not found for OrderTrackingId: ${OrderTrackingId}`), 'handlePesapalIPN');

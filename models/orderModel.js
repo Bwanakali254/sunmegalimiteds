@@ -5,12 +5,15 @@ const orderSchema = new mongoose.Schema({
     items: { type: Array, required: true },
     amount: { type: Number, required: true },
     address: { type: Object, required: true },
-    status: { type: String, required: true, default: 'Order Placed' },
-    paymentMethod: { type: String, required: true },  // ✅ Fixed typo
-    payment: { type: Boolean, required: true, default: false },
+  
+    merchantReference: { type: String, required: true, unique: true }, // ✅ ADD
+  
+    status: { type: String, default: "Order Placed" },
+    paymentMethod: { type: String, required: true },
+    payment: { type: Boolean, default: false },
     date: { type: String, required: true },
     orderTrackingId: { type: String },
-})
+  });
 
 // Add indexes for performance
 orderSchema.index({ userId: 1 });
