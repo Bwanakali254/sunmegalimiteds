@@ -137,3 +137,54 @@ export const checkPesapalStatus = async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 };
+
+
+export const verifyPesapalAndUpdateOrder = async (req, res) => {
+  try {
+    // Accept both cases (Pesapal uses OrderTrackingId)
+    const orderTrackingId =
+      req.query.orderTrackingId || req.query.OrderTrackingId;
+
+    if (!orderTrackingId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing orderTrackingId" });
+    }
+
+    // 1) Ask Pesapal for the real truth
+    const statusData = await getPesapalTransactionStatus(orderTrackingId);
+
+    const paymentStatus =
+      statusData?.payment_status_description ||
+      statusData?.data?.payment_status_description ||
+      "PENDING";
+
+    // 2) Update your DB based on truth (idempotent)
+    if (paymentStatus === "COMPLETED") {
+      await Order.updateOne(
+        { orderTrackingId },
+        { $set: { payment: true, status: "Paid" } }
+      );
+    } else if (
+      paymentStatus === "FAILED" ||
+      paymentStatus === "INVALID" ||
+      paymentStatus === "REVERSED"
+    ) {
+      await Order.updateOne(
+        { orderTrackingId },
+        { $set: { payment: false, status: "Payment Failed" } }
+      );
+    } else {
+      // Pending: don’t overwrite Paid orders by mistake
+      await Order.updateOne(
+        { orderTrackingId, payment: { $ne: true } },
+        { $set: { status: "Pending Payment" } }
+      );
+    }
+
+    // 3) Send response to frontend
+    return res.json({ success: true, status: paymentStatus });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+};
