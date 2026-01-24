@@ -80,13 +80,12 @@ const normalizeOrigin = (url) => {
   return url.replace(/\/$/, ""); // remove trailing slash
 };
 
-// Allowlist (Set = fast + avoids duplicates)
 const allowedOrigins = new Set(
   [
     process.env.FRONTEND_URL,
     process.env.ADMIN_URL,
 
-    // Hard-code production to avoid env mistakes
+    // Hard-code production domains to avoid env mistakes
     "https://sunmega.co.ke",
     "https://www.sunmega.co.ke",
   ]
@@ -106,7 +105,7 @@ app.use(
         return callback(null, true);
       }
 
-      // Debug log so we can see what's being blocked
+      // Debug log: shows the exact origin getting blocked
       console.log("CORS BLOCKED ORIGIN:", origin);
       return callback(new Error("Not allowed by CORS"));
     },
@@ -116,8 +115,8 @@ app.use(
   })
 );
 
-// Handle preflight
-app.options("*", cors());
+// ✅ Preflight handler (Render-safe; avoids "*" path error)
+app.options(/.*/, cors());
 
 // --------------------
 // Body parsing
