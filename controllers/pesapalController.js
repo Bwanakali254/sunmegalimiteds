@@ -163,6 +163,8 @@ export const checkPesapalStatus = async (req, res) => {
   }
 };
 
+// ... existing code ...
+
 // ---------------------------
 // Verify + UPDATE DB (Callback Page should use THIS)
 // ---------------------------
@@ -189,35 +191,88 @@ export const verifyPesapalAndUpdateOrder = async (req, res) => {
       statusData?.data?.payment_status_description ||
       "PENDING";
 
-    // Update DB based on truth (idempotent)
-    let updateResult;
+    // Find the order first to ensure it exists
+    const order = await Order.findOne({ orderTrackingId });
+
+    if (!order) {
+      logError(
+        new Error(`Order not found for orderTrackingId: ${orderTrackingId}`),
+        "verifyPesapalAndUpdateOrder"
+      );
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Update order based on payment status
+    let wasPaymentUpdated = false;
 
     if (paymentStatus === "COMPLETED") {
-      updateResult = await Order.updateOne(
-        { orderTrackingId },
-        { $set: { payment: true, status: "Paid" } }
-      );
+      // Only update if payment is not already true (idempotent)
+      if (!order.payment) {
+        order.payment = true;
+        order.status = "Paid";
+        wasPaymentUpdated = true;
+
+        // Send confirmation emails (fire-and-forget)
+        try {
+          const user = await userModel.findById(order.userId);
+
+          sendPaymentConfirmationEmail({
+            to: order.address.email,
+            order,
+            user,
+          }).catch((err) => logError(err, "verifyPesapalAndUpdateOrder-customerEmail"));
+
+          sendAdminPaymentReceivedEmail({
+            order,
+            user,
+          }).catch((err) => logError(err, "verifyPesapalAndUpdateOrder-adminEmail"));
+        } catch (emailError) {
+          logError(emailError, "verifyPesapalAndUpdateOrder-emails");
+        }
+      }
     } else if (
       paymentStatus === "FAILED" ||
       paymentStatus === "INVALID" ||
       paymentStatus === "REVERSED"
     ) {
-      updateResult = await Order.updateOne(
-        { orderTrackingId },
-        { $set: { payment: false, status: "Payment Failed" } }
-      );
+      order.payment = false;
+      order.status = "Payment Failed";
+
+      // Send failure emails (fire-and-forget)
+      try {
+        const user = await userModel.findById(order.userId);
+
+        sendPaymentFailedEmail({
+          to: order.address.email,
+          order,
+          user,
+        }).catch((err) => logError(err, "verifyPesapalAndUpdateOrder-customerFailedEmail"));
+
+        sendAdminPaymentFailedEmail({
+          order,
+          user,
+        }).catch((err) => logError(err, "verifyPesapalAndUpdateOrder-adminFailedEmail"));
+      } catch (emailError) {
+        logError(emailError, "verifyPesapalAndUpdateOrder-failedEmails");
+      }
     } else {
-      updateResult = await Order.updateOne(
-        { orderTrackingId, payment: { $ne: true } },
-        { $set: { status: "Pending Payment" } }
-      );
+      // Pending-like statuses - only update status if payment is still false
+      if (!order.payment) {
+        order.status = "Pending Payment";
+      }
     }
 
-    // ✅ Debug log so we know if DB matched anything
-    console.log("VERIFY:", orderTrackingId, paymentStatus, "UPDATE:", updateResult);
+    await order.save();
+    console.log(
+      `VERIFY: orderTrackingId=${orderTrackingId}, paymentStatus=${paymentStatus}, orderId=${order._id}, payment=${order.payment}, status=${order.status}, wasPaymentUpdated=${wasPaymentUpdated}`
+    );
 
     return res.json({ success: true, status: paymentStatus });
   } catch (e) {
+    logError(e, "verifyPesapalAndUpdateOrder");
     return res.status(500).json({ success: false, message: e.message });
   }
 };
