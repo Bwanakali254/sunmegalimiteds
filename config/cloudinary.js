@@ -3,12 +3,12 @@ import { logInfo, logError } from '../utils/logger.js';
 
 const connectCloudinary = async () => {
     try {
-        cloudinary.config({
-            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-            api_key: process.env.CLOUDINARY_API_KEY,
-            api_secret: process.env.CLOUDINARY_API_SECRET
-        });
-        
+        if (!process.env.CLOUDINARY_URL) {
+            logError(new Error('Cloudinary credentials missing: set CLOUDINARY_URL'), 'connectCloudinary');
+            return;
+        }
+
+        cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL });
         logInfo('Cloudinary configured successfully', 'cloudinary');
     } catch (error) {
         logError(error, 'connectCloudinary');

@@ -23,7 +23,17 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Validate required environment variables
-const requiredEnvVars = ["MONGODB_URI", "JWT_SECRET", "FRONTEND_URL", "ADMIN_URL"];
+const requiredEnvVars = [
+  "MONGODB_URI",
+  "JWT_SECRET",
+  "FRONTEND_URL",
+  "ADMIN_URL",
+  "PESAPAL_ENV",
+  "PesaPal_CONSUMER_KEY",
+  "PesaPal_CONSUMER_SECRET",
+  "PESAPAL_IPN_ID",
+  "PESAPAL_FRONTEND_CALLBACK_URL",
+];
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 if (missingEnvVars.length > 0) {
   console.error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);

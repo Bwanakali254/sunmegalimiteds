@@ -15,6 +15,10 @@ const addProduct = async (req, res) => {
 
         const images = [image1, image2, image3, image4].filter((item)=> item !== undefined);
 
+        if (images.length === 0) {
+            return res.status(400).json({ success: false, message: "At least one product image is required" });
+        }
+
         let imagesUrl = await Promise.all(
             images.map(async (item) => {
             let result = await cloudinary.uploader.upload(item.path,{resource_type: 'image'});

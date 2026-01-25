@@ -683,12 +683,24 @@ const verifyOTP = async (req, res) => {
             console.log("Setting otpVerified to true for user:", user.email);
             
             // Admin login verification
-            user.otpVerified = true;
-            user.lastLogin = new Date();
             const token = ccreateToken(user._id, user.role);
             const refreshToken = createRefreshToken(user._id);
-            user.refreshToken = refreshToken;
-            await user.save();
+            
+            // Atomic update to guarantee otpVerified persistence
+            const updateResult = await userModel.updateOne(
+                { _id: user._id },
+                { 
+                    $set: { 
+                        otpVerified: true,
+                        lastLogin: new Date(),
+                        refreshToken: refreshToken
+                    } 
+                }
+            );
+            
+            if (updateResult.modifiedCount === 0) {
+                throw new Error("Failed to update user verification status");
+            }
             
             console.log("✅ Admin OTP verified successfully, issuing token");
             console.log("User role:", user.role);
