@@ -90,6 +90,8 @@ const normalizeOrigin = (url) => {
   return url.replace(/\/$/, ""); // remove trailing slash
 };
 
+// ... existing code ...
+
 const allowedOrigins = new Set(
   [
     process.env.FRONTEND_URL,
@@ -98,6 +100,10 @@ const allowedOrigins = new Set(
     // Hard-code production domains to avoid env mistakes
     "https://sunmega.co.ke",
     "https://www.sunmega.co.ke",
+    
+    // Allow Pesapal IPN callbacks
+    "https://pay.pesapal.com",
+    "https://www.pesapal.com",
   ]
     .map(normalizeOrigin)
     .filter(Boolean)
@@ -115,6 +121,11 @@ app.use(
         return callback(null, true);
       }
 
+      // Allow Pesapal payment gateway domains
+      if (origin && (origin.includes("pesapal.com") || origin.includes("pay.pesapal"))) {
+        return callback(null, true);
+      }
+
       // Debug log: shows the exact origin getting blocked
       console.log("CORS BLOCKED ORIGIN:", origin);
       return callback(new Error("Not allowed by CORS"));
@@ -124,6 +135,8 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "token"],
   })
 );
+
+// ... existing code ...
 
 // ✅ Preflight handler (Render-safe; avoids "*" path error)
 app.options(/.*/, cors());

@@ -37,8 +37,9 @@ export const handlePesapalIPN = async (req, res) => {
     const statusData = await getPesapalTransactionStatus(OrderTrackingId);
 
     const paymentStatus =
-      statusData?.payment_status_description ||
-      statusData?.data?.payment_status_description;
+      (statusData?.payment_status_description ||
+      statusData?.data?.payment_status_description || "")
+      .toUpperCase();
 
     if (!paymentStatus) {
       logError(
@@ -187,9 +188,10 @@ export const verifyPesapalAndUpdateOrder = async (req, res) => {
     const statusData = await getPesapalTransactionStatus(orderTrackingId);
 
     const paymentStatus =
-      statusData?.payment_status_description ||
+      (statusData?.payment_status_description ||
       statusData?.data?.payment_status_description ||
-      "PENDING";
+      "PENDING")
+      .toUpperCase();
 
     // Find the order first to ensure it exists
     const order = await Order.findOne({ orderTrackingId });
