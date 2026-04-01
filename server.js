@@ -18,6 +18,9 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 4000
 
+// Trust proxy for rate limiting to work correctly behind Render's proxy
+app.set('trust proxy', 1)
+
 // Connect to DB, Cloudinary, and bootstrap super admin
 connectDB().then(() => {
   bootstrapSuperAdmin()
@@ -74,14 +77,18 @@ app.use(cors({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { success: false, message: 'Too many requests, please try again later' }
+  message: { success: false, message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 })
 app.use(limiter)
 
 const formLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  message: { success: false, message: 'Too many form submissions, please try again later' }
+  message: { success: false, message: 'Too many form submissions, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 })
 
 app.use(express.json({ limit: '10mb' }))

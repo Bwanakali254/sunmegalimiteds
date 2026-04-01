@@ -27,7 +27,13 @@ export const sendEmail = async ({ to, from, subject, html, text, replyTo }) => {
     if (text) emailData.text = text
     if (replyTo) emailData.replyTo = replyTo
 
-    const response = await getResend().emails.send(emailData)
+    // Add 10 second timeout to prevent hanging
+    const sendPromise = getResend().emails.send(emailData)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Email send timeout')), 10000)
+    )
+    
+    const response = await Promise.race([sendPromise, timeoutPromise])
 
     if (response.error) {
       console.error('Resend API error:', response.error)

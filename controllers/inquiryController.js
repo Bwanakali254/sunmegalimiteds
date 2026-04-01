@@ -100,21 +100,19 @@ const submitInquiry = async (req, res) => {
     })
     console.log('Inquiry created:', inquiry)
 
-    // Send notification to quote@ (with replyTo for Zoho replies)
-    try {
-      const notificationResult = await sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod })
-      console.log('Inquiry notification sent to quote@:', notificationResult)
-    } catch (err) {
-      console.error('Inquiry notification email FAILED:', err.message)
-    }
-
-    // Send auto-reply to client
-    try {
-      const autoReplyResult = await sendInquiryAutoReply(email, firstName)
-      console.log('Inquiry auto-reply sent to client:', autoReplyResult)
-    } catch (err) {
-      console.error('Inquiry auto-reply email FAILED:', err.message)
-    }
+    // Send emails asynchronously (non-blocking) with timeout
+    // Don't let email failures break the form submission
+    Promise.race([
+      Promise.all([
+        sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod })
+          .then(result => console.log('Inquiry notification sent:', result))
+          .catch(err => console.error('Notification email failed:', err.message)),
+        sendInquiryAutoReply(email, firstName)
+          .then(result => console.log('Auto-reply sent:', result))
+          .catch(err => console.error('Auto-reply email failed:', err.message))
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout')), 15000))
+    ]).catch(err => console.error('Email sending timed out or failed:', err.message))
 
     res.json({ success: true, message: 'Inquiry submitted successfully' })
   } catch (error) {
