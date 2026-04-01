@@ -17,6 +17,7 @@ const submitInquiry = async (req, res) => {
   try {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
+      console.log('Validation failed:', errors.array().map(e => e.msg))
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -26,7 +27,7 @@ const submitInquiry = async (req, res) => {
 
     const { firstName, lastName, email, phone, location, productInterest, message, contactMethod } = req.body
 
-    await inquiryModel.create({
+    const inquiry = await inquiryModel.create({
       firstName,
       lastName,
       email,
@@ -38,14 +39,23 @@ const submitInquiry = async (req, res) => {
       status: 'new',
       createdAt: new Date()
     })
+    console.log('Inquiry created:', inquiry)
 
-    sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod }).catch(err => {
-      console.error('Inquiry notification email error:', err.message)
-    })
+    // Send notification to quote@ (with replyTo for Zoho replies)
+    try {
+      const notificationResult = await sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod })
+      console.log('Inquiry notification sent to quote@:', notificationResult)
+    } catch (err) {
+      console.error('Inquiry notification email FAILED:', err.message)
+    }
 
-    sendInquiryAutoReply(email, firstName).catch(err => {
-      console.error('Inquiry auto-reply email error:', err.message)
-    })
+    // Send auto-reply to client
+    try {
+      const autoReplyResult = await sendInquiryAutoReply(email, firstName)
+      console.log('Inquiry auto-reply sent to client:', autoReplyResult)
+    } catch (err) {
+      console.error('Inquiry auto-reply email FAILED:', err.message)
+    }
 
     res.json({ success: true, message: 'Inquiry submitted successfully' })
   } catch (error) {

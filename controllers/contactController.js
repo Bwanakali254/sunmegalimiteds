@@ -13,6 +13,7 @@ const submitContact = async (req, res) => {
   try {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
+      console.log('Validation failed:', errors.array().map(e => e.msg))
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -22,7 +23,7 @@ const submitContact = async (req, res) => {
 
     const { name, email, subject, message } = req.body
 
-    await contactModel.create({
+    const contact = await contactModel.create({
       name,
       email,
       subject,
@@ -30,14 +31,23 @@ const submitContact = async (req, res) => {
       date: new Date(),
       status: 'new'
     })
+    console.log('Contact created:', contact)
 
-    sendContactNotification({ name, email, subject, message }).catch(err => {
-      console.error('Contact notification email error:', err.message)
-    })
+    // Send notification to support@ (with replyTo for Zoho replies)
+    try {
+      const notificationResult = await sendContactNotification({ name, email, subject, message })
+      console.log('Contact notification sent to support@:', notificationResult)
+    } catch (err) {
+      console.error('Contact notification email FAILED:', err.message)
+    }
 
-    sendContactAutoReply(email, name).catch(err => {
-      console.error('Contact auto-reply email error:', err.message)
-    })
+    // Send auto-reply to client
+    try {
+      const autoReplyResult = await sendContactAutoReply(email, name)
+      console.log('Contact auto-reply sent to client:', autoReplyResult)
+    } catch (err) {
+      console.error('Contact auto-reply email FAILED:', err.message)
+    }
 
     res.json({ success: true, message: 'Message sent successfully' })
   } catch (error) {

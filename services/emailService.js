@@ -1,15 +1,22 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy-load Resend client to ensure dotenv has loaded first
+let resendInstance = null
+const getResend = () => {
+  if (!resendInstance) {
+    resendInstance = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resendInstance
+}
 
-const EMAIL_NO_REPLY = process.env.EMAIL_NO_REPLY || 'no-reply@sunmega.co.ke'
-const EMAIL_NEWS = process.env.EMAIL_NEWS || 'news@sunmega.co.ke'
+const EMAIL_NO_REPLY = process.env.EMAIL_NO_REPLY || 'onboarding@resend.dev'
+const EMAIL_NEWS = process.env.EMAIL_NEWS || 'onboarding@resend.dev'
 const EMAIL_SUPPORT = process.env.EMAIL_SUPPORT || 'support@sunmega.co.ke'
 const EMAIL_QUOTES = process.env.EMAIL_QUOTES || 'quote@sunmega.co.ke'
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000'
 
-const sendEmail = async ({ to, from, subject, html, text, replyTo }) => {
+export const sendEmail = async ({ to, from, subject, html, text, replyTo }) => {
   try {
     if (!process.env.RESEND_API_KEY) {
       console.error('RESEND_API_KEY not configured')
@@ -20,12 +27,14 @@ const sendEmail = async ({ to, from, subject, html, text, replyTo }) => {
     if (text) emailData.text = text
     if (replyTo) emailData.replyTo = replyTo
 
-    const response = await resend.emails.send(emailData)
+    const response = await getResend().emails.send(emailData)
 
     if (response.error) {
+      console.error('Resend API error:', response.error)
       throw new Error(response.error.message)
     }
 
+    console.log('Email sent successfully:', response.data?.id)
     return response.data
   } catch (error) {
     console.error('Email send error:', error.message)
@@ -107,7 +116,7 @@ export const sendContactNotification = async (contactData) => {
   const text = `New Contact Form Submission\n\nName: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}\n\nPlease reply directly to the sender's email address.`
 
   return await sendEmail({
-    to: EMAIL_QUOTES,
+    to: EMAIL_SUPPORT,
     from: EMAIL_NO_REPLY,
     replyTo: email,
     subject: `Contact Form: ${subject}`,
@@ -365,6 +374,146 @@ export const sendNewsletterThanks = async (email, unsubscribeToken) => {
     to: email,
     from: EMAIL_NEWS,
     subject: 'Thanks for subscribing!',
+    html,
+    text
+  })
+}
+
+/**
+ * Send OTP Email for Admin Login 2FA
+ * @param {string} email - Recipient email
+ * @param {string} name - User name
+ * @param {string} otpCode - 6-digit OTP code
+ * @param {string} purpose - OTP purpose (admin_login, etc.)
+ */
+export const sendOTPEmail = async ({ email, name, otpCode, purpose }) => {
+  const subject = purpose === 'admin_login' 
+    ? 'Your Admin Login Verification Code'
+    : 'Your Verification Code'
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background-color: #22c55e; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${subject}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px; text-align: center;">
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hello ${name},
+              </p>
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                Your verification code is:
+              </p>
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #22c55e;">${otpCode}</span>
+              </div>
+              <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+                This code will expire in 10 minutes.<br>
+                If you didn't request this code, please ignore this email.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="color: #666666; font-size: 14px; margin: 0;">&copy; ${new Date().getFullYear()} Sun Mega Limited. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+
+  const text = `${subject}\n\nHello ${name},\n\nYour verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, please ignore this email.\n\nBest regards,\nSun Mega Team`
+
+  return await sendEmail({
+    to: email,
+    from: EMAIL_NO_REPLY,
+    subject,
+    html,
+    text
+  })
+}
+
+/**
+ * Send Admin Invitation Email
+ * @param {string} email - Admin email
+ * @param {string} name - Admin name
+ * @param {string} tempPassword - Temporary password
+ */
+export const sendAdminInviteEmail = async ({ email, name, tempPassword }) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Sun Mega Admin</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background-color: #22c55e; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Welcome to Sun Mega Admin</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hello ${name},
+              </p>
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                You have been invited to join the Sun Mega Limited admin panel. Here are your login credentials:
+              </p>
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${email}</p>
+                <p style="margin: 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
+              </div>
+              <p style="color: #dc2626; font-size: 14px; line-height: 1.6; margin: 20px 0;">
+                <strong>Important:</strong> You will be required to change this password on your first login.
+              </p>
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
+                Please log in at the admin panel and complete the security verification.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="color: #666666; font-size: 14px; margin: 0;">&copy; ${new Date().getFullYear()} Sun Mega Limited. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+
+  const text = `Welcome to Sun Mega Admin\n\nHello ${name},\n\nYou have been invited to join the Sun Mega Limited admin panel. Here are your login credentials:\n\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nImportant: You will be required to change this password on your first login.\n\nPlease log in at the admin panel and complete the security verification.\n\nBest regards,\nSun Mega Team`
+
+  return await sendEmail({
+    to: email,
+    from: EMAIL_NO_REPLY,
+    subject: 'Welcome to Sun Mega Admin Panel',
     html,
     text
   })
