@@ -1,13 +1,8 @@
 import { Resend } from 'resend'
+import emailQueueModel from '../models/emailQueueModel.js'
 
-// Lazy-load Resend client to ensure dotenv has loaded first
-let resendInstance = null
-const getResend = () => {
-  if (!resendInstance) {
-    resendInstance = new Resend(process.env.RESEND_API_KEY)
-  }
-  return resendInstance
-}
+// Initialize Resend client
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 const EMAIL_NO_REPLY = process.env.EMAIL_NO_REPLY || 'onboarding@resend.dev'
 const EMAIL_NEWS = process.env.EMAIL_NEWS || 'onboarding@resend.dev'
@@ -16,35 +11,118 @@ const EMAIL_QUOTES = process.env.EMAIL_QUOTES || 'quote@sunmega.co.ke'
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000'
 
+/**
+ * Send email using Resend API with queue and retry logic
+ * @param {Object} params - Email parameters
+ * @param {string} params.to - Recipient email address
+ * @param {string} params.from - Sender email address
+ * @param {string} params.subject - Email subject
+ * @param {string} params.html - HTML email content
+ * @param {string} [params.text] - Plain text email content (optional)
+ * @param {string} [params.replyTo] - Reply-to email address (optional)
+ * @returns {Promise<Object>} Resend API response
+ * @throws {Error} If email sending fails
+ */
 export const sendEmail = async ({ to, from, subject, html, text, replyTo }) => {
+  // Create email queue entry
+  const queueEntry = await emailQueueModel.create({
+    to,
+    from,
+    subject,
+    html,
+    text: text || '',
+    status: 'pending',
+    attempts: 0,
+    maxAttempts: 3
+  })
+  
   try {
     if (!process.env.RESEND_API_KEY) {
-      console.error('RESEND_API_KEY not configured')
-      return null
+      throw new Error('RESEND_API_KEY is not configured')
     }
 
     const emailData = { from, to, subject, html }
     if (text) emailData.text = text
     if (replyTo) emailData.replyTo = replyTo
 
-    // Add 10 second timeout to prevent hanging
-    const sendPromise = getResend().emails.send(emailData)
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Email send timeout')), 10000)
-    )
-    
-    const response = await Promise.race([sendPromise, timeoutPromise])
+    queueEntry.attempts += 1
+    queueEntry.lastAttemptAt = new Date()
+
+    const response = await resend.emails.send(emailData)
 
     if (response.error) {
-      console.error('Resend API error:', response.error)
-      throw new Error(response.error.message)
+      throw new Error(response.error.message || 'Failed to send email')
     }
+
+    // Mark as sent
+    queueEntry.status = 'sent'
+    queueEntry.sentAt = new Date()
+    await queueEntry.save()
 
     console.log('Email sent successfully:', response.data?.id)
     return response.data
   } catch (error) {
     console.error('Email send error:', error.message)
-    return null
+    
+    // Update queue entry with failure
+    queueEntry.status = queueEntry.attempts >= queueEntry.maxAttempts ? 'failed' : 'pending'
+    queueEntry.error = error.message
+    if (queueEntry.status === 'failed') {
+      queueEntry.failedAt = new Date()
+    }
+    await queueEntry.save()
+    
+    // Retry logic: schedule retry for pending emails
+    if (queueEntry.attempts < queueEntry.maxAttempts) {
+      setTimeout(() => retryFailedEmail(queueEntry._id), 60000) // Retry after 1 minute
+      console.log(`[EMAIL] Scheduled retry for: ${queueEntry._id}`)
+    }
+    
+    throw error
+  }
+}
+
+// Retry failed email
+const retryFailedEmail = async (queueId) => {
+  try {
+    const queueEntry = await emailQueueModel.findById(queueId)
+    if (!queueEntry || queueEntry.status === 'sent' || queueEntry.attempts >= queueEntry.maxAttempts) {
+      return
+    }
+    
+    queueEntry.attempts += 1
+    queueEntry.lastAttemptAt = new Date()
+    await queueEntry.save()
+    
+    const response = await resend.emails.send({
+      from: queueEntry.from,
+      to: queueEntry.to,
+      subject: queueEntry.subject,
+      html: queueEntry.html,
+      text: queueEntry.text
+    })
+    
+    if (response.error) {
+      throw new Error(response.error.message)
+    }
+    
+    queueEntry.status = 'sent'
+    queueEntry.sentAt = new Date()
+    await queueEntry.save()
+    
+    console.log(`[EMAIL] Retry successful: ${queueId}`)
+  } catch (error) {
+    console.error(`[EMAIL] Retry failed: ${queueId}`, error.message)
+    
+    const queueEntry = await emailQueueModel.findById(queueId)
+    if (queueEntry) {
+      queueEntry.error = error.message
+      if (queueEntry.attempts >= queueEntry.maxAttempts) {
+        queueEntry.status = 'failed'
+        queueEntry.failedAt = new Date()
+      }
+      await queueEntry.save()
+    }
   }
 }
 
