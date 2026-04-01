@@ -106,7 +106,7 @@ app.get('/health', (req, res) => {
 app.post('/api/test-email', async (req, res) => {
   try {
     const result = await sendEmail({
-      to: process.env.EMAIL_QUOTES || 'quote@sunmega.co.ke',
+      to: process.env.EMAIL_QUOTES || 'quotes@sunmega.co.ke',
       from: process.env.EMAIL_NO_REPLY || 'no-reply@sunmega.co.ke',
       subject: 'Test Email from New Backend',
       html: '<h1>Test Email</h1><p>This is a test from the new SunMega backend.</p>',

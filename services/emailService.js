@@ -7,7 +7,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_NO_REPLY = process.env.EMAIL_NO_REPLY || 'onboarding@resend.dev'
 const EMAIL_NEWS = process.env.EMAIL_NEWS || 'onboarding@resend.dev'
 const EMAIL_SUPPORT = process.env.EMAIL_SUPPORT || 'support@sunmega.co.ke'
-const EMAIL_QUOTES = process.env.EMAIL_QUOTES || 'quote@sunmega.co.ke'
+const EMAIL_QUOTES = process.env.EMAIL_QUOTES || 'quotes@sunmega.co.ke'
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000'
 
