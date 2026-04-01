@@ -98,23 +98,26 @@ const submitInquiry = async (req, res) => {
       status: 'new',
       createdAt: new Date()
     })
-    console.log('Inquiry created:', inquiry)
+    console.log('Inquiry created:', inquiry._id)
 
-    // Send emails asynchronously (non-blocking) with timeout
-    // Don't let email failures break the form submission
-    Promise.race([
-      Promise.all([
-        sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod })
-          .then(result => console.log('Inquiry notification sent:', result))
-          .catch(err => console.error('Notification email failed:', err.message)),
-        sendInquiryAutoReply(email, firstName)
-          .then(result => console.log('Auto-reply sent:', result))
-          .catch(err => console.error('Auto-reply email failed:', err.message))
-      ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout')), 15000))
-    ]).catch(err => console.error('Email sending timed out or failed:', err.message))
+    // Fire-and-forget email sending - completely detached from response
+    // Use setImmediate to ensure it runs after response is sent
+    setImmediate(() => {
+      Promise.race([
+        Promise.all([
+          sendInquiryNotification({ firstName, lastName, email, phone, location, productInterest, message, contactMethod })
+            .then(result => console.log('[EMAIL] Notification sent:', result ? 'success' : 'failed'))
+            .catch(err => console.error('[EMAIL] Notification error:', err.message)),
+          sendInquiryAutoReply(email, firstName)
+            .then(result => console.log('[EMAIL] Auto-reply sent:', result ? 'success' : 'failed'))
+            .catch(err => console.error('[EMAIL] Auto-reply error:', err.message))
+        ]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ]).catch(err => console.error('[EMAIL] Email process failed:', err.message))
+    })
 
-    res.json({ success: true, message: 'Inquiry submitted successfully' })
+    // Return response immediately - don't wait for emails
+    return res.json({ success: true, message: 'Inquiry submitted successfully', inquiryId: inquiry._id })
   } catch (error) {
     console.error('Inquiry submission error:', error.message)
     res.status(500).json({ success: false, message: 'Failed to submit inquiry' })
